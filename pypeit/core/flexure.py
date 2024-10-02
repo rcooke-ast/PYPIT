@@ -161,9 +161,9 @@ def spat_flexure_shift(sciimg, slits, gpm=None, method="detector", maxlag=20, de
         # print the flexure for each slit
         for slit_idx in range(slits.nslits):
             if method == "slit":
-                msgs.info("Slit {0:d}: Spatial flexure = {1:5.3f}".format(slit_idx + 1, total_flexure[slit_idx, 0]))
+                msgs.info("Slit {0:d}: Spatial flexure = {1:5.3f} pixels".format(slit_idx + 1, total_flexure[slit_idx, 0]))
             elif method == "edge":
-                msgs.info("Slit {0:d}: Left/right spatial flexure = {1:5.3f} / {2:5.3f}".format(slit_idx + 1,
+                msgs.info("Slit {0:d}: Left/right spatial flexure = {1:5.3f} / {2:5.3f} pixels".format(slit_idx + 1,
                                                                                                 total_flexure[slit_idx, 0],
                                                                                                 total_flexure[slit_idx, 1]))
     else:
