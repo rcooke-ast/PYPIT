@@ -781,7 +781,7 @@ class SlitTraceSet(calibframe.CalibFrame):
         # Generate the slit ID image if it wasn't provided
         if not full:
             if slitid_img is None:
-                slitid_img = self.slit_img(pad=pad, slitidx=_slitidx, initial=initial)
+                slitid_img = self.slit_img(pad=pad, slitidx=_slitidx, initial=initial, spat_flexure=spat_flexure)
             if slitid_img.shape != (self.nspec,self.nspat):
                 msgs.error('Provided slit ID image does not have the correct shape!')
 

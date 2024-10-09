@@ -671,8 +671,8 @@ class RawImage:
         # bias and dark subtraction) and before field flattening.  Also the
         # function checks that the slits exist if running the spatial flexure
         # correction, so no need to do it again here.
-        self.spat_flexure_shift = self.spatial_flexure_shift(slits, method=self.par['spat_flexure_method'],
-                                                                 maxlag=self.par['spat_flexure_maxlag']) \
+        self.spat_flexure_shift = self.spatial_flexure_shift(slits, flatimages, method=self.par['spat_flexure_method'],
+                                                             maxlag=self.par['spat_flexure_maxlag']) \
             if self.par['spat_flexure_method'] != "skip" else None
 
         #   - Subtract scattered light... this needs to be done before flatfielding.
@@ -766,7 +766,7 @@ class RawImage:
         return _det, self.image, self.ivar, self.datasec_img, self.det_img, self.rn2img, \
                 self.base_var, self.img_scale, self.bpm
 
-    def spatial_flexure_shift(self, slits, force=False, method="detector", maxlag=20):
+    def spatial_flexure_shift(self, slits, flatimages, force=False, method="detector", maxlag=20):
         """
         Calculate a spatial shift in the edge traces due to flexure.
 
@@ -776,6 +776,8 @@ class RawImage:
         Args:
             slits (:class:`~pypeit.slittrace.SlitTraceSet`, optional):
                 Slit edge traces
+            flatimages (:class:`~pypeit.flatfield.FlatImages`):
+                Flat field images
             force (:obj:`bool`, optional):
                 Force the image to be field flattened, even if the step log
                 (:attr:`steps`) indicates that it already has been.
@@ -801,8 +803,14 @@ class RawImage:
         if self.nimg > 1:
             msgs.error('CODING ERROR: Must use a single image (single detector or detector '
                        'mosaic) to determine spatial flexure.')
-        self.spat_flexure_shift = flexure.spat_flexure_shift(self.image[0], slits, gpm=np.logical_not(self._bpm),
-                                                             method=method, maxlag=maxlag)
+
+        slitprof = None
+        if self.par['use_illumflat']:
+            slitprof = flatimages.fit2illumflat(slits, finecorr=False)
+            slitprof *= flatimages.fit2illumflat(slits, finecorr=True)
+
+        self.spat_flexure_shift = flexure.spat_flexure_shift(self.image[0], slits, gpm=np.logical_not(self._bpm[0]),
+                                                             slitprof=slitprof, method=method, maxlag=maxlag)
         self.steps[step] = True
         # Return
         return self.spat_flexure_shift

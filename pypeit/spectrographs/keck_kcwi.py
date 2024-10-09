@@ -305,8 +305,8 @@ class KeckKCWIKCRMSpectrograph(spectrograph.Spectrograph):
         par['calibrations']['flatfield']['spec_samp_coarse'] = 20.0
         par['calibrations']['flatfield']['tweak_slits'] = True  # Tweak the slit edges
         par['calibrations']['flatfield']['tweak_method'] = 'gradient'  # The gradient method is better for SlicerIFU.
-        par['calibrations']['flatfield']['tweak_slits_thresh'] = 0.0  # Make sure the full slit is used (i.e. when the illumination fraction is > 0.5)
-        par['calibrations']['flatfield']['tweak_slits_maxfrac'] = 0.0  # Make sure the full slit is used (i.e. no padding)
+        # par['calibrations']['flatfield']['tweak_slits_thresh'] = 0.0  # Make sure the full slit is used (i.e. when the illumination fraction is > 0.5)
+        par['calibrations']['flatfield']['tweak_slits_maxfrac'] = 0.1
         par['calibrations']['flatfield']['slit_trim'] = 3  # Trim the slit edges
         # Relative illumination correction
         par['calibrations']['flatfield']['slit_illum_relative'] = True  # Calculate the relative slit illumination
@@ -319,7 +319,7 @@ class KeckKCWIKCRMSpectrograph(spectrograph.Spectrograph):
         # Illumination corrections
         par['scienceframe']['process']['use_illumflat'] = True  # illumflat is applied when building the relative scale image in reduce.py, so should be applied to scienceframe too.
         par['scienceframe']['process']['use_specillum'] = True  # apply relative spectral illumination
-        par['scienceframe']['process']['spat_flexure_method'] = "skip"  # don't correct for spatial flexure - varying spatial illumination profile could throw this correction off. Also, there's no way to do astrometric correction if we can't correct for spatial flexure of the contbars frames
+        par['scienceframe']['process']['spat_flexure_method'] = "edge"  # don't correct for spatial flexure - varying spatial illumination profile could throw this correction off. Also, there's no way to do astrometric correction if we can't correct for spatial flexure of the contbars frames
         par['scienceframe']['process']['use_biasimage'] = True  # Need to use bias frames for KCWI, because the bias level varies monotonically with spatial and spectral direction
         par['scienceframe']['process']['use_darkimage'] = False
 
@@ -948,8 +948,8 @@ class KeckKCWISpectrograph(KeckKCWIKCRMSpectrograph):
         # Subtract scattered light, but only for the pixel and illum flats,
         # as well as and science/standard star data.
         par['calibrations']['scattlight_pad'] = 6  # This is the unbinned number of pixels to pad
-        par['calibrations']['pixelflatframe']['process']['subtract_scattlight'] = True
-        par['calibrations']['illumflatframe']['process']['subtract_scattlight'] = True
+        par['calibrations']['pixelflatframe']['process']['subtract_scattlight'] = False
+        par['calibrations']['illumflatframe']['process']['subtract_scattlight'] = False
         par['scienceframe']['process']['subtract_scattlight'] = False
         par['scienceframe']['process']['scattlight']['finecorr_method'] = 'median'
         par['scienceframe']['process']['scattlight']['finecorr_pad'] = 4  # This is the unbinned number of pixels to pad
@@ -957,7 +957,7 @@ class KeckKCWISpectrograph(KeckKCWIKCRMSpectrograph):
         # par['scienceframe']['process']['scattlight']['finecorr_mask'] = 12  # Mask the middle inter-slit region. It contains a strange scattered light feature that doesn't appear to affect any other inter-slit regions
 
         # Correct for non-linear behaviour in the detector response
-        nonlin_array = [-1.4E-7, -1.4E-7, -1.2E-7, -1.8E-7]  # AMPID=0,1,2,3 respectively
+        nonlin_array = None#[-1.4E-7, -1.4E-7, -1.2E-7, -1.8E-7]  # AMPID=0,1,2,3 respectively
         par['calibrations']['arcframe']['process']['correct_nonlinear'] = nonlin_array
         par['calibrations']['tiltframe']['process']['correct_nonlinear'] = nonlin_array
         par['calibrations']['pixelflatframe']['process']['correct_nonlinear'] = nonlin_array
@@ -967,7 +967,7 @@ class KeckKCWISpectrograph(KeckKCWIKCRMSpectrograph):
 
         # Alter the method used to combine pixel flats
         par['calibrations']['pixelflatframe']['process']['combine'] = 'mean'
-        par['calibrations']['flatfield']['spat_samp'] = 1.0  # This should give 1% accuracy in the spatial illumination correction for 2x2 binning, and <0.5% accuracy for 1x1 binning
+        # par['calibrations']['flatfield']['spat_samp'] = 1.0  # This should give 1% accuracy in the spatial illumination correction for 2x2 binning, and <0.5% accuracy for 1x1 binning
 
         # Need to fit sinusoidal sensitivity pattern, and include in the relative pixel response
         par['calibrations']['flatfield']['fit_2d_det_response'] = True  # Include the 2D detector response in the pixelflat.
