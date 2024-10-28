@@ -46,7 +46,7 @@ class ShaneHamspecSpectrograph(spectrograph.Spectrograph):
         # Copied from Keck/HIRES
         # Slit tracing
         par['calibrations']['slitedges']['edge_thresh'] = 8.0
-        par['calibrations']['slitedges']['fit_order'] = 8
+        par['calibrations']['slitedges']['fit_order'] = 5  # 8 was too high
         par['calibrations']['slitedges']['max_shift_adj'] = 0.5
         par['calibrations']['slitedges']['trace_thresh'] = 10.
         par['calibrations']['slitedges']['left_right_pca'] = True
