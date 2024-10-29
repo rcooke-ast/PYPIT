@@ -12,6 +12,7 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 from matplotlib import gridspec
+from matplotlib.lines import Line2D
 import matplotlib
 
 from astropy import stats
@@ -36,6 +37,7 @@ from pypeit.core import extract
 from pypeit.core import fitting
 from pypeit.core import qa
 from pypeit.core import trace
+from pypeit.core.wavecal import wvutils
 from pypeit.datamodel import DataContainer
 from pypeit.images.detector_container import DetectorContainer
 from pypeit.images.mosaic import Mosaic
@@ -45,7 +47,7 @@ from pypeit import wavemodel
 from IPython import embed
 
 
-def spat_flexure_shift(sciimg, slits, debug=False, maxlag = 20):
+def spat_flexure_shift(sciimg, slits, bpm=None, debug=True, maxlag=20, sigdetect=20.):
     """
     Calculate a rigid flexure shift in the spatial dimension
     between the slitmask and the science image.
@@ -57,129 +59,101 @@ def spat_flexure_shift(sciimg, slits, debug=False, maxlag = 20):
 
     Args:
         sciimg (`numpy.ndarray`_):
+            Science image
         slits (:class:`pypeit.slittrace.SlitTraceSet`):
+            Slits object
+        bpm (`numpy.ndarray`_, optional):
+            Bad pixel mask (True = Bad)
         maxlag (:obj:`int`, optional):
             Maximum flexure searched for
+        debug (:obj:`bool`, optional):
+            Run in debug mode
 
     Returns:
         float:  The spatial flexure shift relative to the initial slits
 
     """
+    msgs.info("Measuring spatial flexure")
     # Mask -- Includes short slits and those excluded by the user (e.g. ['rdx']['slitspatnum'])
     slitmask = slits.slit_img(initial=True, exclude_flag=slits.bitmask.exclude_for_flexure)
 
     _sciimg = sciimg if slitmask.shape == sciimg.shape \
-                else arc.resize_mask2arc(slitmask.shape, sciimg) 
-    onslits = (slitmask > -1).astype(float)
+                else arc.resize_mask2arc(slitmask.shape, sciimg)
 
-    # sci_smash_mean, sci_smash_median, sci_smash_sig = sigma_clipped_stats(_sciimg, axis=0, sigma=4.0)
-    # slit_smash_mean, slit_smash_median, slit_smash_sig = sigma_clipped_stats(onslits, axis=0, sigma=4.0)
-    #
-    # lags, xcorr = utils.cross_correlate(sci_smash_median, slit_smash_median, slit_smash_median.size)
-    # xcorr_denom = np.sqrt(np.sum(sci_smash_median*sci_smash_median)*np.sum(slit_smash_median*slit_smash_median))
-    # xcorr_norm = xcorr / xcorr_denom
-    #
-    # tampl_true, tampl, pix_max, twid, centerr, ww, arc_cont, nsig \
-    #         = arc.detect_lines(xcorr_norm, sigdetect=3.0, fit_frac_fwhm=1.5, fwhm=5.0,
-    #                            cont_frac_fwhm=1.0, cont_samp=30, debug=debug)
+    # create sobel images of both slitmask and the science image
+    sci_sobel, _ = trace.detect_slit_edges(_sciimg, sobel_enhance=2)
+    slits_sobel, _ = trace.detect_slit_edges(slitmask, sobel_enhance=2)
+    # collapse both sobel images along the spectral direction
+    sci_smash_mean, _, _ = sigma_clipped_stats(sci_sobel, axis=0, mask=bpm)
+    slits_smash_mean, _, _ = sigma_clipped_stats(slits_sobel, axis=0, mask=bpm)
+    # trim the edges
+    sci_smash = sci_smash_mean[5:-5]
+    slits_smash = slits_smash_mean[5:-5]
+    # invert the negative values
+    sci_smash[sci_smash < 0] = -sci_smash[sci_smash < 0]
+    slits_smash[slits_smash < 0] = -slits_smash[slits_smash < 0]
 
-    sobelsig, edge_img = trace.detect_slit_edges(_sciimg, sobel_enhance=2)
-    slit_sobelsig, slit_img = trace.detect_slit_edges(slitmask, sobel_enhance=2)
-    sci_smash_mean, sci_smash_median, sci_smash_sig = sigma_clipped_stats(edge_img, axis=0, sigma=4.0)
-    slit_smash_mean, slit_smash_median, slit_smash_sig = sigma_clipped_stats(slit_img, axis=0, sigma=4.0)
-    corr_sci, corr_slits = sci_smash_mean[1:-1], slit_smash_mean[1:-1]
-    lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, corr_sci.size)
+    corr_sci = wvutils. get_xcorr_arc(sci_smash, percent_ceil=50, cont_sub=True, sigdetect=sigdetect, debug=debug)
+    corr_slits = wvutils.get_xcorr_arc(slits_smash, percent_ceil=50, cont_sub=False, input_thresh=0, debug=debug)
+
+    # run x-cross correlation
+    lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
     xcorr_denom = np.sqrt(np.sum(corr_sci*corr_sci)*np.sum(corr_slits*corr_slits))
     xcorr_norm = xcorr / xcorr_denom
 
-    tampl_true, tampl, pix_max, twid, centerr, ww, arc_cont, nsig = arc.detect_lines(xcorr_norm,
-                                                                                     cont_subtract=False,
-                                                                                     input_thresh=0.1, debug=debug)
-
+    _, _, pix_max, _, _, _, _, _ = arc.detect_lines(xcorr_norm, cont_subtract=False, input_thresh=0.,
+                                                    nfind=1, debug=debug)
     # No peak? -- e.g. data fills the entire detector
-    if len(tampl) == 0:
-        msgs.warn('No peak found in spatial flexure.  Assuming there is none...')
+    if len(pix_max) == 0:
+        msgs.warn('No peak found in the x-correlation between the traced slits and the science/calib image.'
+                  '  Assuming there is NO SPATIAL FLEXURE.'+msgs.newline() + 'If a flexure is expected, '
+                  'consider either changing the maximum lag for the cross-correlation, '
+                  'or the "spat_flexure_sigdetect" parameter, or use the manual flexure correction.')
 
         return 0.
-    lag0_idx = np.where(lags == 0)[0][0]
-    pix_max = np.atleast_1d(pix_max)
-
-    peaks = pix_max - lag0_idx
-    maxpeaks = np.abs(peaks) <= maxlag
-    lag_max = peaks[maxpeaks]
-    xcorr_max = tampl_true[maxpeaks]
-    if not np.any(maxpeaks):
-        msgs.warn('No peak found within the maximum lag.  Assuming there is none...')
-        return 0.
-    elif np.sum(maxpeaks) > 1:
-        msgs.warn('Multiple peaks found within the maximum lag. Using the peak detected with the highest xcross value.')
-        maxsig = np.argmax(xcorr_max)
-        lag_max = np.atleast_1d(lag_max[maxsig])
-        xcorr_max = np.atleast_1d(tampl_true[maxpeaks][maxsig])
-
-    # Find the peak
-    msgs.info('Spatial flexure measured: {}'.format(lag_max[0]))
+    lag0 = np.where(lags == 0)[0][0]
+    shift = round(pix_max[0] - lag0, 3)
+    msgs.info('Spatial flexure measured: {}'.format(shift))
 
     if debug:
+        # 1D plot
         xvals = np.arange(corr_slits.size)
         plt.clf()
         ax = plt.gca()
-        scale = np.abs(corr_slits).max() / np.abs(corr_sci).max()
+        scale = np.nanmax(corr_slits) / np.nanmax(corr_sci)
         ax.plot(xvals, corr_slits, 'k', label='slitmask edge peaks')
-        ax.plot(xvals, corr_sci*scale, 'g', label='original science edge peaks')
-        ax.plot(xvals, np.roll(corr_sci*scale, -int(lag_max[0])), '--r', label='shifted science edge peaks')
+        #ax.plot(xvals, corr_sci*scale, 'g', label='original science edge peaks')
+        ax.plot(xvals, np.roll(scale*corr_sci, -int(shift)), '--r', label='shifted science edge peaks')
         ax.legend()
         plt.show()
 
+        # 2D plot
+        left_slits, right_slits, mask_slits = slits.select_edges(initial=True, flexure=None)
+        left_flex, right_flex, mask = slits.select_edges(initial=True, flexure=shift)
+        # get vmin and vmax for imshow
+        m, med, sig = sigma_clipped_stats(sciimg[np.logical_not(bpm)], sigma_lower=5.0, sigma_upper=5.0)
+        vmin = m - 1.0 * sig
+        vmax = m + 4.0 * sig
+        plt.imshow(_sciimg, origin='lower', vmin=vmin, vmax=vmax)
+        spec = np.tile(np.arange(slits.nspec), (slits.nslits, 1)).T
+        thin = slits.nspec//50
+        for i in range(slits.nslits):
+            plt.plot(left_slits[::thin, i], spec[::thin, i], color='C3', lw=1, ls='--', zorder=5)
+            plt.plot(right_slits[::thin, i], spec[::thin, i], color='C1', lw=1, ls='--', zorder=5)
+            plt.plot(left_flex[::thin, i], spec[::thin, i], color='C3', lw=1, zorder=6)
+            plt.plot(right_flex[::thin, i], spec[::thin, i], color='C1', lw=1, zorder=6)
 
-    # corr_slits = onslits.astype(float).flatten()
-    #
-    # # Compute
-    # mean_sci, med_sci, stddev_sci = stats.sigma_clipped_stats(_sciimg[onslits])
-    # thresh =  med_sci + 5.0*stddev_sci
-    # corr_sci = np.fmin(_sciimg.flatten(), thresh)
-    # lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
-    # xcorr_denom = np.sqrt(np.sum(corr_sci*corr_sci)*np.sum(corr_slits*corr_slits))
-    # xcorr_norm = xcorr / xcorr_denom
-    # # TODO -- Generate a QA plot
-    # embed()
-    # tampl_true, tampl, pix_max, twid, centerr, ww, arc_cont, nsig \
-    #         = arc.detect_lines(xcorr_norm, sigdetect=3.0, fit_frac_fwhm=1.5, fwhm=5.0,
-    #                            cont_frac_fwhm=1.0, cont_samp=30, nfind=1, debug=debug)
-    # # No peak? -- e.g. data fills the entire detector
-    # if len(tampl) == 0:
-    #     msgs.warn('No peak found in spatial flexure.  Assuming there is none...')
-    #
-    #     return 0.
-    #
-    # # Find the peak
-    # xcorr_max = np.interp(pix_max, np.arange(lags.shape[0]), xcorr_norm)
-    # lag_max = np.interp(pix_max, np.arange(lags.shape[0]), lags)
-    # msgs.info('Spatial flexure measured: {}'.format(lag_max[0]))
-
-    if debug:
-        plt.figure(figsize=(14, 6))
-        plt.plot(lags, xcorr_norm, color='black', drawstyle='steps-mid', lw=3, label='x-corr')
-        plt.plot(lag_max[0], xcorr_max[0], 'g+', markersize=6.0, label='peak')
-        plt.title('Best shift = {:5.3f}'.format(lag_max[0]) + ',  corr_max = {:5.3f}'.format(xcorr_max[0]))
-        plt.legend()
+        legend_elements = [Line2D([0], [0], color='C3', lw=1, ls='--', label='initial left edges'),
+                           Line2D([0], [0], color='C1', lw=1, ls='--', label='initial right edges'),
+                           Line2D([0], [0], color='C3', lw=1,  label='shifted left edges'),
+                           Line2D([0], [0], color='C1', lw=1, label='shifted right edges')]
+        plt.legend(handles=legend_elements)
+        plt.tight_layout()
         plt.show()
 
-    #tslits_shift = trace_slits.shift_slits(tslits_dict, lag_max)
-    # Now translate the tilts
+        embed()
 
-    #slitmask_shift = pixels.tslits2mask(tslits_shift)
-    #slitmask_shift = slits.slit_img(flexure=lag_max[0])
-
-    if debug:
-        # Now translate the slits in the tslits_dict
-        all_left_flexure, all_right_flexure, mask = slits.select_edges(flexure=lag_max[0])
-        gpm = mask == 0
-        viewer, ch = display.show_image(_sciimg)
-        #display.show_slits(viewer, ch, left_flexure[:,gpm], right_flexure)[:,gpm]#, slits.id) #, args.det)
-        #embed(header='83 of flexure.py')
-
-    return lag_max[0]
+    return shift
 
 
 def spec_flex_shift(obj_skyspec, sky_file=None, arx_skyspec=None, arx_fwhm_pix=None,

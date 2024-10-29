@@ -455,8 +455,8 @@ def zerolag_shift_stretch(theta, y1, y2, stretch_func = 'quadratic'):
     return -corr_norm
 
 
-
-def get_xcorr_arc(inspec1, sigdetect=5.0, sig_ceil=10.0, percent_ceil=50.0, use_raw_arc=False, fwhm = 4.0, debug=False):
+def get_xcorr_arc(inspec1, sigdetect=5.0, input_thresh=None, sig_ceil=10.0, percent_ceil=50.0, use_raw_arc=False,
+                  fwhm=4.0, cont_sub=True, debug=False):
     """
     Utility routine to create a synthetic arc spectrum for cross-correlation
     using the location of the peaks in the input spectrum.
@@ -465,7 +465,10 @@ def get_xcorr_arc(inspec1, sigdetect=5.0, sig_ceil=10.0, percent_ceil=50.0, use_
         inspec1 (`numpy.ndarray`_):
             Input spectrum, shape = (nspec,)
         sigdetect (float, optional, default=3.0):
-            Peak finding threshold for lines that will be used to create the synthetic xcorr_arc
+            Sigma threshold above fluctuations for finding peaks that will be used to create the synthetic xcorr_arc
+        input_thresh (float, optional):
+            Input threshold  for finding peaks that will be used to create the synthetic xcorr_arc. If set, sigdetect
+            will be ignored.
         sig_ceil (float, optional, default = 10.0):
             Significance threshold for peaks that will be used to determine the line amplitude clipping threshold.
             For peaks with significance > sig_ceil, the code will find the amplitude corresponding to
@@ -477,6 +480,8 @@ def get_xcorr_arc(inspec1, sigdetect=5.0, sig_ceil=10.0, percent_ceil=50.0, use_
             If True, use amplitudes from the raw arc, i.e. do not continuum subtract. Default = False
         fwhm (float, optional):
             Fwhm of arc lines. Used for peak finding and to assign a fwhm in the xcorr_arc.
+        cont_sub (bool, optional):
+            Perform a simple continuum subtraction when detecting the peaks. Default is True.
         debug (bool, optional):
              Show plots for line detection debugging. Default = False
 
@@ -489,7 +494,9 @@ def get_xcorr_arc(inspec1, sigdetect=5.0, sig_ceil=10.0, percent_ceil=50.0, use_
 
     # Run line detection to get the locations and amplitudes of the lines
     tampl1, tampl1_cont, tcent1, twid1, centerr1, w1, arc1, nsig1 = arc.detect_lines(inspec1, sigdetect=sigdetect,
-                                                                                     fwhm=fwhm, debug=debug)
+                                                                                     input_thresh=input_thresh,
+                                                                                     fwhm=fwhm, cont_subtract=cont_sub,
+                                                                                     debug=debug)
 
     ampl = tampl1 if use_raw_arc else tampl1_cont
 
@@ -515,7 +522,6 @@ def get_xcorr_arc(inspec1, sigdetect=5.0, sig_ceil=10.0, percent_ceil=50.0, use_
         if tcent1[ind] == -999.0:
             continue
         xcorr_arc += ampl_clip[ind]*np.exp(-0.5*((spec_vec - tcent1[ind])/sigma)**2)
-
 
     return xcorr_arc
 
