@@ -7,7 +7,7 @@ The view portion of the PypeIt Setup GUI.  Responsible for displaying informatio
 from pathlib import Path
 
 from qtpy.QtWidgets import QGroupBox, QHBoxLayout, QVBoxLayout, QComboBox, QToolButton, QFileDialog, QWidget, QGridLayout, QFormLayout
-from qtpy.QtWidgets import QMessageBox, QTabWidget, QTreeView, QLayout, QLabel, QScrollArea, QListView, QTableView, QPushButton, QStyleOptionButton, QProgressDialog, QDialog, QHeaderView, QSizePolicy, QCheckBox, QDialog
+from qtpy.QtWidgets import QMenu, QTabWidget, QTreeView, QLayout, QLabel, QScrollArea, QListView, QTableView, QPushButton, QStyleOptionButton, QProgressDialog, QDialog, QHeaderView, QSizePolicy, QCheckBox, QDialog
 from qtpy.QtWidgets import QAction, QAbstractItemView, QStyledItemDelegate, QButtonGroup, QStyle, QTabBar,QAbstractItemDelegate, QSplitter
 from qtpy.QtGui import QIcon,QDesktopServices, QMouseEvent, QKeySequence, QPalette, QColor, QValidator, QFont, QFontDatabase, QFontMetrics, QTextCharFormat, QTextCursor
 from qtpy.QtCore import Qt, QUrl, QObject, QEvent, QSize, Signal,QSettings, QStringListModel, QAbstractItemModel, QModelIndex, QMargins, QSortFilterProxyModel, QRect
@@ -559,8 +559,7 @@ class PypeItMetadataView(QTableView):
         if min_height > self.minimumHeight():
             self.setMinimumHeight(min_height)
 
-        self.addActions(controller.getActions(self))
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
 
         self.setMouseTracking(True)
 
@@ -642,6 +641,20 @@ class PypeItMetadataView(QTableView):
             self.resizeColumnsToContents()
             self.resizeRowsToContents()
             self._shownOnce=True
+
+    def contextMenuEvent(self, event):
+        menu = QMenu()
+        actions = self._controller.getActions(self)
+        for action in actions:
+            if not isinstance(action,list):
+                menu.addAction(action)
+            else:
+                submenu = QMenu()
+                submenu.setTitle(action[0])
+                for subaction in action[1:]:
+                    submenu.addAction(subaction)
+                menu.addMenu(submenu)
+        menu.exec_(event.globalPos())
 
     def selectionChanged(self, selected, deselected):
         """Event handler called by Qt when a selection change. Overriden from QTableView.

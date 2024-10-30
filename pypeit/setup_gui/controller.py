@@ -7,7 +7,6 @@ acting on user input, running background tasks, and returning information to the
 """
 import traceback
 import sys
-import threading
 from datetime import datetime
 import re
 import io
@@ -363,6 +362,7 @@ class PypeItMetadataController(QObject):
         self.next_window_id = 1
 
         # Build actions
+        # Dynamic view file actions are build later
         self._action_list = [MetadataReadOnlyAction(self, "View File",   self.view_file),
                              MetadataReadOnlyAction(self, "View Header", self.view_header),
                              MetadataReadOnlyAction(self, "Copy",        self.copy_metadata_rows,       shortcut=QKeySequence.StandardKey.Copy),
@@ -398,11 +398,39 @@ class PypeItMetadataController(QObject):
 
     def updatedEnabledActions(self):
         """Updates which actions are enabled/disabled."""
+    
+        spectrograph = self._model.spectrograph
+        
+        if spectrograph is not None:
+            num_mosaics = len(self._model.spectrograph.allowed_mosaics)
+            num_detector = self._model.spectrograph.ndet
+            view_file_actions = ["View File"] + \
+                                [MetadataReadOnlyAction(self, f"Detector {n+1}", partial(self.view_file, n+1,mosaic=False)) for n in range(num_detector)] + \
+                                [MetadataReadOnlyAction(self, f"Mosaic {self._model.spectrograph.allowed_mosaics[n]}", partial(self.view_file, n+1,mosaic=True)) for n in range(num_mosaics)]
+        else:
+            view_file_actions = MetadataReadOnlyAction(self, "View File", self.view_file)
+        
+        self._action_list[0] = view_file_actions
+
         for action in self._action_list:
-            action.updateEnabledStatus()
+            if isinstance(action, list):
+                for subaction in action[1:]:
+                    subaction.updateEnabledStatus()
+            else:
+                action.updateEnabledStatus()
                     
-    def view_file(self):
+    def view_file(self, n=None, mosaic=False):
         """View the selected files in the metadata using Ginga."""
+        if n == None:
+            # Default to detector 1
+            n = 1
+
+        if mosaic:
+            n = self._model.spectrograph.allowed_mosaics[n-1]
+            det_name = f"MSC {n}"
+        else:
+            det_name = f"DET {n}"
+
         row_indices = self._view.selectedRows()
         if len(row_indices) > 0:
 
@@ -424,13 +452,13 @@ class PypeItMetadataController(QObject):
                     return
 
                 try:
-                    img = self._model.spectrograph.get_rawimage(str(file), 1)[1]
+                    img = self._model.spectrograph.get_rawimage(str(file), n)[1]
                 except Exception as e:
                     display_error(self._main_controller.main_window, f"Failed to read image {file.name}: {e}")
                     msgs.warn(f"Failed get raw image:\n" + traceback.format_exc())
 
                 try:
-                    display.show_image(img, chname = f"{file.name}")
+                    display.show_image(img, chname = f"{file.name} {det_name}")
                 except Exception as e:
                     display_error(self._main_controller.main_window, f"Failed to send image {file.name} to ginga: {e}")
                     msgs.warn(f"Failed send image to ginga:\n" + traceback.format_exc())
