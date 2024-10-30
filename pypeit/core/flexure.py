@@ -47,7 +47,7 @@ from pypeit import wavemodel
 from IPython import embed
 
 
-def spat_flexure_shift(sciimg, slits, bpm=None, debug=True, maxlag=20, sigdetect=20.):
+def spat_flexure_shift(sciimg, slits, bpm=None, debug=False, maxlag=20, sigdetect=20.):
     """
     Calculate a rigid flexure shift in the spatial dimension
     between the slitmask and the science image.
@@ -93,14 +93,16 @@ def spat_flexure_shift(sciimg, slits, bpm=None, debug=True, maxlag=20, sigdetect
     sci_smash[sci_smash < 0] = -sci_smash[sci_smash < 0]
     slits_smash[slits_smash < 0] = -slits_smash[slits_smash < 0]
 
+    # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
     corr_sci = wvutils. get_xcorr_arc(sci_smash, percent_ceil=50, cont_sub=True, sigdetect=sigdetect, debug=debug)
-    corr_slits = wvutils.get_xcorr_arc(slits_smash, percent_ceil=50, cont_sub=False, input_thresh=0, debug=debug)
+    corr_slits = wvutils.get_xcorr_arc(slits_smash, percent_ceil=50, cont_sub=False, input_thresh=1., debug=debug)
 
     # run x-cross correlation
     lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
     xcorr_denom = np.sqrt(np.sum(corr_sci*corr_sci)*np.sum(corr_slits*corr_slits))
     xcorr_norm = xcorr / xcorr_denom
 
+    # detect the highest peak in the cross-correlation
     _, _, pix_max, _, _, _, _, _ = arc.detect_lines(xcorr_norm, cont_subtract=False, input_thresh=0.,
                                                     nfind=1, debug=debug)
     # No peak? -- e.g. data fills the entire detector
@@ -151,9 +153,119 @@ def spat_flexure_shift(sciimg, slits, bpm=None, debug=True, maxlag=20, sigdetect
         plt.tight_layout()
         plt.show()
 
-        embed()
+    # TODO: add QA plot generation here and add parameters to control vranges.
 
     return shift
+
+
+def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, out_dir=None):
+    """
+    Generate QA for the spatial flexure
+
+    Args:
+        img (`numpy.ndarray`_):
+            Image of the detector
+        slits (:class:`pypeit.slittrace.SlitTraceSet`):
+            Slits object
+        shift (:obj:`float`):
+            Shift in pixels
+        gpm (`numpy.ndarray`_, optional):
+            Good pixel mask (True = Bad)
+        vrange (:obj:`tuple`, optional):
+            Tuple with the min and max values for the imshow plot
+        out_dir (:obj:`str`, optional):
+            Path to the output directory for the QA plots.  If None, the current
+            is used.
+
+
+    """
+
+    left_slits, right_slits, mask_slits = slits.select_edges(initial=True, flexure=None)
+    left_flex, right_flex, mask = slits.select_edges(initial=True, flexure=shift)
+    if vrange is None:
+        # get vmin and vmax for imshow
+        if gpm is None:
+            gpm = np.ones_like(img, dtype=bool)
+        m, med, sig = sigma_clipped_stats(img[gpm], sigma_lower=5.0, sigma_upper=5.0)
+        vmin = m - 1.0 * sig
+        vmax = m + 4.0 * sig
+    else:
+        vmin, vmax = vrange
+
+    # where to start and end the plot in the spatial direction
+    xstart = np.floor(np.min([left_slits, left_flex]) - 20)
+    if xstart < 0:
+        xstart = 0
+    xend = np.ceil(np.max([right_slits, right_flex]) + 20)
+    if xend > img.shape[1]:
+        xend = img.shape[1]
+    # where to start and end the plot in the spectral direction for both the upper and lower sections
+    lower_ystart = 0
+    lower_yend = img.shape[0]//6
+    upper_ystart = img.shape[0] - img.shape[0]//6
+    upper_yend = img.shape[0]
+
+    # how many snippets to plot in the spatial direction
+    if slits.nslits == 1:
+        # if longslit plot 2 snippets, one for the left edge and one for the right edge
+        nxsnip = 2
+        snippet = (xend - xstart) // nxsnip
+        spat_starts = [xstart, xstart + snippet]
+        spat_ends = [xend - snippet, xend]
+    elif slits.nslits <= 4:
+        # if 4 or less slits plot 3 snippets equally spaced
+        nxsnip = 3
+        snippet = (xend - xstart) // nxsnip
+        spat_starts = [xstart, xstart + snippet, xstart + 2*snippet]
+        spat_ends = [xend - 2*snippet, xend - snippet, xend]
+    else:
+        # if more than 4 slits plot 4 snippets
+        nxsnip = 4
+        # approximately, we want 4 slits in each snippet
+        snippet = 3 * (xend - xstart)/slits.nslits
+        # this would give nx many snippets
+        nx = int((xend - xstart) // snippet)
+        # but we want to plot only for of those snippets
+        step = nx / nxsnip
+        spat_starts = [xstart, xstart + step*snippet, xstart + 2*step*snippet, xstart + 3*step*snippet]
+        spat_ends = [xend - 3*step*snippet, xend - 2*step*snippet, xend - step*snippet, xend]
+
+    # plot the spatial flexure
+    fig = plt.figure(figsize=(nxsnip*4, 8))
+    gs = gridspec.GridSpec(2, nxsnip, figure=fig)
+    # spectral vector for plotting the slits
+    spec = np.tile(np.arange(slits.nspec), (slits.nslits, 1)).T
+    thin = 10
+    # legend elements
+    legend_elements = [Line2D([0], [0], color='C3', lw=1, ls='--', label='initial left edges'),
+                       Line2D([0], [0], color='C1', lw=1, ls='--', label='initial right edges'),
+                       Line2D([0], [0], color='C3', lw=1, label='shifted left edges'),
+                       Line2D([0], [0], color='C1', lw=1, label='shifted right edges')]
+    # loop over the 2 rows
+    for r in range(2):
+        _ystar, _yend = (lower_ystart, lower_yend) if r == 1 else (upper_ystart, upper_yend)
+        # loop over the snippets
+        for s in range(nxsnip):
+            ax = fig.add_subplot(gs[r, s])
+            ax.imshow(img, origin='lower', vmin=vmin, vmax=vmax)
+            ax.set_ylim(_ystar, _yend)
+            ax.set_xlim(spat_starts[s], spat_ends[s])
+            # plot the slits
+            for i in range(slits.nslits):
+                plt.plot(left_slits[::thin, i], spec[::thin, i], color='C3', lw=1, ls='--', zorder=5)
+                plt.plot(right_slits[::thin, i], spec[::thin, i], color='C1', lw=1, ls='--', zorder=5)
+                plt.plot(left_flex[::thin, i], spec[::thin, i], color='C3', lw=1, zorder=6)
+                plt.plot(right_flex[::thin, i], spec[::thin, i], color='C1', lw=1, zorder=6)
+            ax.tick_params(axis='both', labelsize=6)
+            if r == 0 and s == 0:
+                ax.legend(handles=legend_elements, fontsize=7)
+                ax.set_ylabel('Upper snippets', fontsize=18)
+            elif r == 1 and s == 0:
+                ax.set_ylabel('Lower snippets', fontsize=18)
+    plt.tight_layout()
+    plt.show()
+
+
 
 
 def spec_flex_shift(obj_skyspec, sky_file=None, arx_skyspec=None, arx_fwhm_pix=None,
