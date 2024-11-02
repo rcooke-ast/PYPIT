@@ -194,7 +194,7 @@ class MultiSlitCoAdd1D(CoAdd1D):
     Child of CoAdd1d for Multislit and Longslit reductions.
     """
 
-    def __init__(self, spec1dfiles, objids, spectrograph=None, par=None, sensfuncfile=None, setup_id=None, 
+    def __init__(self, spec1dfiles, objids, spectrograph=None, par=None, sensfuncfile=None, setup_id=None,
                  debug=False, show=False, chk_version=False):
         """
         See :class:`CoAdd1D` instantiation for argument descriptions.
