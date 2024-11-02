@@ -16,7 +16,6 @@ from astropy.time import Time
 from pypeit import msgs
 from pypeit import inputfiles
 from pypeit import coadd1d
-from pypeit import inputfiles
 from pypeit.par import pypeitpar
 from pypeit.scripts import scriptbase
 from pypeit.spectrographs.util import load_spectrograph
@@ -202,6 +201,3 @@ class CoAdd1DSpec(scriptbase.ScriptBase):
         # Save to file
         coAdd1d.save(coaddfile)
         msgs.info('Coadding complete')
-
-
-
