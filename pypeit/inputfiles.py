@@ -121,7 +121,7 @@ class InputFile:
         # Read the input lines and replace special characters
         with open(ifile, 'r') as f:
             return np.array([l.replace('\t', ' ').rstrip()  for l in f.readlines()])
-        
+
     @classmethod
     def from_file(cls, input_file:str, vet:bool=True, preserve_comments:bool=False):
         """
@@ -143,7 +143,7 @@ class InputFile:
         # Read in the pypeit reduction file
         msgs.info('Loading the reduction file')
         lines = cls.readlines(input_file)
-       
+
         if not preserve_comments:
             lines = InputFile.remove_comments_and_blanks(lines)
 
