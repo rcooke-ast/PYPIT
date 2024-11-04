@@ -150,6 +150,8 @@ Bug Fixes
   the 'BOXSLIT' flag.
 - Fix a bug in `pypeit_coadd_2d` related to how the binning was taken into account
   in the mask definition, and in the calculation of the offset between frames.
+- Fix bug when trying to open mosaic data from previous versions; version
+  checking flag was not being propagated. 
 
 
 
