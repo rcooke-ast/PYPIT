@@ -643,9 +643,15 @@ class PypeItMetadataView(QTableView):
             self._shownOnce=True
 
     def contextMenuEvent(self, event):
+        """Build and display a context menu for file metadata"""
         menu = QMenu()
+
+        # Build a menu from the controller's actions
+        # A submenu is represetned by a nested list,
+        # currently we only supported one level of nesting.
         actions = self._controller.getActions(self)
         for action in actions:
+            # 
             if not isinstance(action,list):
                 menu.addAction(action)
             else:
@@ -654,6 +660,7 @@ class PypeItMetadataView(QTableView):
                 for subaction in action[1:]:
                     submenu.addAction(subaction)
                 menu.addMenu(submenu)
+        # Display the menu
         menu.exec_(event.globalPos())
 
     def selectionChanged(self, selected, deselected):
@@ -999,24 +1006,6 @@ class PypeItFileView(TabManagerBaseTab):
         # Monitor the model for updates
         self.model.stateChanged.connect(self.update_from_model)
 
-    def splitterMoved(self, pos, index):
-        msgs.info(f"splitter moved pos {pos} index {index}")
-        msgs.info(f"params size/sizeHint/minSizeHint:   {self.params_group.size()} / {self.params_group.sizeHint()} / {self.params_group.minimumSizeHint()}")        
-        msgs.info(f"setup size/sizeHint/minSizeHint:    {self.config_panel.size()} / {self.config_panel.sizeHint()} / {self.config_panel.minimumSizeHint()}")        
-        msgs.info(f"paths size/sizeHint/minSizeHint:    {self.paths_group.size()} / {self.paths_group.sizeHint()} / {self.paths_group.minimumSizeHint()}")        
-        msgs.info(f"metadata size/sizeHint/minSizeHint: {self.file_group.size()} / {self.file_group.sizeHint()} / {self.file_group.minimumSizeHint()}")        
-        msgs.info(f"Splitter sizes: {self.splitter.sizes()}")
-        #sizes = self.splitter.sizes()
-        #msgs.info(f"Sizes:   {self.splitter.sizes()}")
-        #pg_index = self.splitter.indexOf(self.params_group)
-        #if self.params_group.size().height == 0:
-        #    fm = self.params_group.fontMetrics()
-        #    self.params_group.setMinimumHeight(fm.height())
-        #    self.splitter.setCollapsible(pg_index,False)
-        #    sizes[pg_index] = fm.height()
-        #    self.splitter.setSizes(sizes)
-        #elif self.splitter.isCollapsible(pg_index) is False and self.params_group.size().height > 0:
-        #    self.splitter.setCollapsible(pg_index,True)
     def update_from_model(self):
         """
         Signal handler that updates view when the underlying model changes.

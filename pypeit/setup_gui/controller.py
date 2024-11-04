@@ -362,7 +362,7 @@ class PypeItMetadataController(QObject):
         self.next_window_id = 1
 
         # Build actions
-        # Dynamic view file actions are build later
+        # Dynamic View File actions are build later in updateEnabledActions
         self._action_list = [MetadataReadOnlyAction(self, "View File",   self.view_file),
                              MetadataReadOnlyAction(self, "View Header", self.view_header),
                              MetadataReadOnlyAction(self, "Copy",        self.copy_metadata_rows,       shortcut=QKeySequence.StandardKey.Copy),
@@ -401,12 +401,12 @@ class PypeItMetadataController(QObject):
     
         spectrograph = self._model.spectrograph
         
+        # The actions under "View File" depend on the current spectrgraph, and so are dynamically setup here as a nested submenu
         if spectrograph is not None:
-            num_mosaics = len(self._model.spectrograph.allowed_mosaics)
             num_detector = self._model.spectrograph.ndet
             view_file_actions = ["View File"] + \
-                                [MetadataReadOnlyAction(self, f"Detector {n+1}", partial(self.view_file, n+1,mosaic=False)) for n in range(num_detector)] + \
-                                [MetadataReadOnlyAction(self, f"Mosaic {self._model.spectrograph.allowed_mosaics[n]}", partial(self.view_file, n+1,mosaic=True)) for n in range(num_mosaics)]
+                                [MetadataReadOnlyAction(self, f"Detector {n+1}", partial(self.view_file, n+1)) for n in range(num_detector)] 
+                                
         else:
             view_file_actions = MetadataReadOnlyAction(self, "View File", self.view_file)
         
@@ -414,22 +414,19 @@ class PypeItMetadataController(QObject):
 
         for action in self._action_list:
             if isinstance(action, list):
+                # The nested "View File" sub menu
                 for subaction in action[1:]:
                     subaction.updateEnabledStatus()
             else:
                 action.updateEnabledStatus()
                     
-    def view_file(self, n=None, mosaic=False):
+    def view_file(self, n=None):
         """View the selected files in the metadata using Ginga."""
         if n == None:
             # Default to detector 1
             n = 1
 
-        if mosaic:
-            n = self._model.spectrograph.allowed_mosaics[n-1]
-            det_name = f"MSC {n}"
-        else:
-            det_name = f"DET {n}"
+        det_name = f"DET {n}"
 
         row_indices = self._view.selectedRows()
         if len(row_indices) > 0:
