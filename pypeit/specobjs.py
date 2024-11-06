@@ -113,7 +113,7 @@ class SpecObjs:
                 # from_hdu method, and the name of the HDU must have a known format
                 # (e.g., 'DET01-DETECTOR').
                 _det = hdu.name.split('-')[0]
-                detector_hdus[_det] = dmodcls.from_hdu(hdu)
+                detector_hdus[_det] = dmodcls.from_hdu(hdu, chk_version=chk_version)
 
             # Now the objects
             for hdu in hdul[1:]:
