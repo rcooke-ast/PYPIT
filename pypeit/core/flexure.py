@@ -87,21 +87,21 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
                 else arc.resize_mask2arc(slitmask.shape, sciimg)
 
     # create sobel images of both slitmask and the science image
-    sci_sobel, _ = trace.detect_slit_edges(_sciimg, sobel_enhance=2)
-    slits_sobel, _ = trace.detect_slit_edges(slitmask, sobel_enhance=2)
+    sci_sobel, _ = trace.detect_slit_edges(_sciimg)
+    slits_sobel, _ = trace.detect_slit_edges(slitmask)
     # collapse both sobel images along the spectral direction
-    sci_smash_mean, _, _ = sigma_clipped_stats(sci_sobel, axis=0, mask=bpm)
-    slits_smash_mean, _, _ = sigma_clipped_stats(slits_sobel, axis=0, mask=bpm)
-    # trim the edges
-    sci_smash = sci_smash_mean[5:-5]
-    slits_smash = slits_smash_mean[5:-5]
+    sci_smash, _, _ = sigma_clipped_stats(sci_sobel, axis=0, mask=bpm)
+    slits_smash, _, _ = sigma_clipped_stats(slits_sobel, axis=0, mask=bpm)
+    # remove nan values
+    sci_smash[np.isnan(sci_smash)] = 0
+    slits_smash[np.isnan(slits_smash)] = 0
     # invert the negative values
-    sci_smash[sci_smash < 0] = -sci_smash[sci_smash < 0]
-    slits_smash[slits_smash < 0] = -slits_smash[slits_smash < 0]
+    sci_smash[sci_smash < 0] *= -1
+    slits_smash[slits_smash < 0] *= -1
 
     # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
-    corr_sci = wvutils.get_xcorr_arc(sci_smash, percent_ceil=50, cont_sub=True, sigdetect=sigdetect, debug=debug)
-    corr_slits = wvutils.get_xcorr_arc(slits_smash, percent_ceil=50, cont_sub=False, input_thresh=1., debug=debug)
+    corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=None, sigdetect=sigdetect, debug=debug)
+    corr_slits = wvutils.get_xcorr_arc(slits_smash, cont_sub=False, percent_ceil=None, input_thresh=1., debug=debug)
 
     # run x-cross correlation
     lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
@@ -128,9 +128,11 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
         xvals = np.arange(corr_slits.size)
         plt.figure(figsize=(9, 8))
         scale = np.nanmax(corr_slits) / np.nanmax(corr_sci)
+        plt.suptitle(f'Shift={shift:.1f} pixels', fontsize=18)
         plt.plot(xvals, corr_slits, 'k', label='slitmask edge peaks')
         plt.plot(xvals, np.roll(scale*corr_sci, -int(shift)), '--r', label='shifted science edge peaks')
         plt.legend()
+        plt.tight_layout()
         plt.show()
 
         # 2D plot
