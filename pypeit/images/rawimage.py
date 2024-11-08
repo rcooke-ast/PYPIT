@@ -666,12 +666,11 @@ class RawImage:
 
         # Calculate flexure, if slits are provided and the correction is
         # requested.  NOTE: This step must come after trim, orient (just like
-        # bias and dark subtraction) and before field flattening.
-        if self.par['spat_flexure_correct']:
-            if slits is not None:
-                self.spat_flexure_shift = self.spatial_flexure_shift(slits, debug=debug)
-            else:
-                msgs.warn('Spatial flexure correction requested but no slits provided.')
+        # bias and dark subtraction) and before field flattening.  Also the
+        # function checks that the slits exist if running the spatial flexure
+        # correction, so no need to do it again here.
+        self.spat_flexure_shift = self.spatial_flexure_shift(slits, debug=debug) \
+                                    if self.par['spat_flexure_correct'] else None
 
         #   - Subtract scattered light... this needs to be done before flatfielding.
         if self.par['subtract_scattlight']:

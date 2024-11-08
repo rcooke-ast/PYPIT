@@ -160,8 +160,8 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, outfile=None):
         vrange (:obj:`tuple`, optional):
             Tuple with the min and max values for the imshow plot
         outfile (:obj:`str`, optional):
-            Path to the output file where the QA is saved.  If None, the current
-            is used.
+            Path to the output file where the QA is saved.  If None, the QA is
+            shown on screen and not saved.
 
 
     """
