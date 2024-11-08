@@ -100,7 +100,7 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     slits_smash[slits_smash < 0] = -slits_smash[slits_smash < 0]
 
     # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
-    corr_sci = wvutils. get_xcorr_arc(sci_smash, percent_ceil=50, cont_sub=True, sigdetect=sigdetect, debug=debug)
+    corr_sci = wvutils.get_xcorr_arc(sci_smash, percent_ceil=50, cont_sub=True, sigdetect=sigdetect, debug=debug)
     corr_slits = wvutils.get_xcorr_arc(slits_smash, percent_ceil=50, cont_sub=False, input_thresh=1., debug=debug)
 
     # run x-cross correlation
