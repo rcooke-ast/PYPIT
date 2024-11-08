@@ -223,7 +223,7 @@ class ProcessImagesPar(ParSet):
                  use_pixelflat=None, use_illumflat=None, use_specillum=None,
                  use_pattern=None, subtract_scattlight=None, scattlight=None, subtract_continuum=None,
                  spat_flexure_correct=None, spat_flexure_maxlag=None,
-                 spat_flexure_sigdetect=None):
+                 spat_flexure_sigdetect=None, spat_flexure_vrange=None):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -365,13 +365,19 @@ class ProcessImagesPar(ParSet):
         dtypes['spat_flexure_maxlag'] = int
         descr['spat_flexure_maxlag'] = 'Maximum of possible spatial flexure correction, in pixels'
 
-        defaults['spat_flexure_sigdetect'] = 20
+        defaults['spat_flexure_sigdetect'] = 10.
         dtypes['spat_flexure_sigdetect'] = [int, float]
         descr['spat_flexure_sigdetect'] = 'Sigma threshold above fluctuations for the slit detection in ' \
                                           'the spectral image, for which the spatial flexure is computed.  ' \
                                           'A sobel filter is applied to the image and then collapsed along the ' \
                                           'spectral direction. The sigma threshold is used to detect peaks in the '\
                                           'collapsed image.'
+
+        defaults['spat_flexure_vrange'] = None
+        dtypes['spat_flexure_vrange'] = tuple
+        descr['spat_flexure_vrange'] = 'This parameter is used when generating the QA plot for the spatial flexure. ' \
+                                       'It sets the data range (vmin,vmax) used by the colormap when showing the ' \
+                                       'spectral image. If None, the range is set automatically.'
 
         defaults['combine'] = 'mean'
         options['combine'] = ProcessImagesPar.valid_combine_methods()
@@ -471,7 +477,7 @@ class ProcessImagesPar(ParSet):
                    'subtract_scattlight', 'scattlight', 'use_pattern', 'use_overscan',
                    'overscan_method', 'overscan_par', 'use_darkimage', 'dark_expscale',
                    'spat_flexure_correct', 'spat_flexure_maxlag', 'spat_flexure_sigdetect',
-                   'use_illumflat', 'use_specillum',
+                   'spat_flexure_vrange', 'use_illumflat', 'use_specillum',
                    'empirical_rn', 'shot_noise', 'noise_floor', 'use_pixelflat', 'combine',
                    'scale_to_mean', 'correct_nonlinear', 'satpix', #'calib_setup_and_bit',
                    'n_lohi', 'mask_cr', 'lamaxiter', 'grow', 'clip', 'comb_sigrej', 'rmcompact',

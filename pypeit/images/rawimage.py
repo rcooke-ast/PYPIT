@@ -20,11 +20,13 @@ from pypeit.core import procimg
 from pypeit.core import flat
 from pypeit.core import flexure
 from pypeit.core import scattlight
+from pypeit.core import qa
 from pypeit.core.mosaic import build_image_mosaic
 from pypeit.images import pypeitimage
 from pypeit import utils
 from pypeit.display import display
-
+from pypeit import io
+from pathlib import Path
 
 # TODO: I don't understand why we have some of these attributes.  E.g., why do
 # we need both hdu and headarr?
@@ -664,11 +666,12 @@ class RawImage:
 
         # Calculate flexure, if slits are provided and the correction is
         # requested.  NOTE: This step must come after trim, orient (just like
-        # bias and dark subtraction) and before field flattening.  Also the
-        # function checks that the slits exist if running the spatial flexure
-        # correction, so no need to do it again here.
-        self.spat_flexure_shift = self.spatial_flexure_shift(slits, debug=debug) \
-                                    if self.par['spat_flexure_correct'] else None
+        # bias and dark subtraction) and before field flattening.
+        if self.par['spat_flexure_correct']:
+            if slits is not None:
+                self.spat_flexure_shift = self.spatial_flexure_shift(slits, debug=debug)
+            else:
+                msgs.warn('Spatial flexure correction requested but no slits provided.')
 
         #   - Subtract scattered light... this needs to be done before flatfielding.
         if self.par['subtract_scattlight']:
@@ -789,10 +792,16 @@ class RawImage:
         if self.nimg > 1:
             msgs.error('CODING ERROR: Must use a single image (single detector or detector '
                        'mosaic) to determine spatial flexure.')
+
+        # get filename for QA
+        basename = f'{io.remove_suffix(self.filename)}_{self.spectrograph.get_det_name(self.det)}'
+        outdir = str(Path(slits.calib_dir).parent) if slits.calib_dir is not None else None
+        qa_outfile = qa.set_qa_filename(basename, 'spat_flexure_qa_corr', out_dir=outdir)
+
         self.spat_flexure_shift = flexure.spat_flexure_shift(self.image[0], slits, bpm=self._bpm[0],
-                                                             debug=debug,
                                                              maxlag=self.par['spat_flexure_maxlag'],
-                                                             sigdetect=self.par['spat_flexure_sigdetect'])
+                                                             sigdetect=self.par['spat_flexure_sigdetect'],
+                                                             debug=debug, qa_outfile=qa_outfile)
         self.steps[step] = True
         # Return
         return self.spat_flexure_shift

@@ -47,7 +47,7 @@ from pypeit import wavemodel
 from IPython import embed
 
 
-def spat_flexure_shift(sciimg, slits, bpm=None, debug=False, maxlag=20, sigdetect=20.):
+def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=False, qa_outfile=None):
     """
     Calculate a rigid flexure shift in the spatial dimension
     between the slitmask and the science image.
@@ -66,14 +66,20 @@ def spat_flexure_shift(sciimg, slits, bpm=None, debug=False, maxlag=20, sigdetec
             Bad pixel mask (True = Bad)
         maxlag (:obj:`int`, optional):
             Maximum flexure searched for
+        sigdetect (:obj:`float`, optional):
+            Sigma threshold above fluctuations for the slit detection
+            in the collapsed sobel image
         debug (:obj:`bool`, optional):
             Run in debug mode
+        qa_outfile (:obj:`str`, optional):
+            Path to the output file where the QA is saved.  If None, the QA is not generated.
 
     Returns:
         float:  The spatial flexure shift relative to the initial slits
 
     """
     msgs.info("Measuring spatial flexure")
+    # TODO: should we use initial or tweaked slits?
     # Mask -- Includes short slits and those excluded by the user (e.g. ['rdx']['slitspatnum'])
     slitmask = slits.slit_img(initial=True, exclude_flag=slits.bitmask.exclude_for_flexure)
 
@@ -120,45 +126,25 @@ def spat_flexure_shift(sciimg, slits, bpm=None, debug=False, maxlag=20, sigdetec
     if debug:
         # 1D plot
         xvals = np.arange(corr_slits.size)
-        plt.clf()
-        ax = plt.gca()
+        plt.figure(figsize=(9, 8))
         scale = np.nanmax(corr_slits) / np.nanmax(corr_sci)
-        ax.plot(xvals, corr_slits, 'k', label='slitmask edge peaks')
-        #ax.plot(xvals, corr_sci*scale, 'g', label='original science edge peaks')
-        ax.plot(xvals, np.roll(scale*corr_sci, -int(shift)), '--r', label='shifted science edge peaks')
-        ax.legend()
+        plt.plot(xvals, corr_slits, 'k', label='slitmask edge peaks')
+        plt.plot(xvals, np.roll(scale*corr_sci, -int(shift)), '--r', label='shifted science edge peaks')
+        plt.legend()
         plt.show()
 
         # 2D plot
-        left_slits, right_slits, mask_slits = slits.select_edges(initial=True, flexure=None)
-        left_flex, right_flex, mask = slits.select_edges(initial=True, flexure=shift)
-        # get vmin and vmax for imshow
-        m, med, sig = sigma_clipped_stats(sciimg[np.logical_not(bpm)], sigma_lower=5.0, sigma_upper=5.0)
-        vmin = m - 1.0 * sig
-        vmax = m + 4.0 * sig
-        plt.imshow(_sciimg, origin='lower', vmin=vmin, vmax=vmax)
-        spec = np.tile(np.arange(slits.nspec), (slits.nslits, 1)).T
-        thin = slits.nspec//50
-        for i in range(slits.nslits):
-            plt.plot(left_slits[::thin, i], spec[::thin, i], color='C3', lw=1, ls='--', zorder=5)
-            plt.plot(right_slits[::thin, i], spec[::thin, i], color='C1', lw=1, ls='--', zorder=5)
-            plt.plot(left_flex[::thin, i], spec[::thin, i], color='C3', lw=1, zorder=6)
-            plt.plot(right_flex[::thin, i], spec[::thin, i], color='C1', lw=1, zorder=6)
+        spat_flexure_qa(sciimg, slits, shift, gpm=np.logical_not(bpm))
 
-        legend_elements = [Line2D([0], [0], color='C3', lw=1, ls='--', label='initial left edges'),
-                           Line2D([0], [0], color='C1', lw=1, ls='--', label='initial right edges'),
-                           Line2D([0], [0], color='C3', lw=1,  label='shifted left edges'),
-                           Line2D([0], [0], color='C1', lw=1, label='shifted right edges')]
-        plt.legend(handles=legend_elements)
-        plt.tight_layout()
-        plt.show()
-
-    # TODO: add QA plot generation here and add parameters to control vranges.
+    if qa_outfile is not None:
+        # Generate the QA plot
+        msgs.info("Generating QA plot for spatial flexure")
+        spat_flexure_qa(sciimg, slits, shift, gpm=np.logical_not(bpm), outfile=qa_outfile)
 
     return shift
 
 
-def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, out_dir=None):
+def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, outfile=None):
     """
     Generate QA for the spatial flexure
 
@@ -173,66 +159,72 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, out_dir=None):
             Good pixel mask (True = Bad)
         vrange (:obj:`tuple`, optional):
             Tuple with the min and max values for the imshow plot
-        out_dir (:obj:`str`, optional):
-            Path to the output directory for the QA plots.  If None, the current
+        outfile (:obj:`str`, optional):
+            Path to the output file where the QA is saved.  If None, the current
             is used.
 
 
     """
-
+    debug = True if outfile is None else False
+    # TODO: should we use initial or tweaked slits in this plot?
     left_slits, right_slits, mask_slits = slits.select_edges(initial=True, flexure=None)
     left_flex, right_flex, mask = slits.select_edges(initial=True, flexure=shift)
-    if vrange is None:
-        # get vmin and vmax for imshow
-        if gpm is None:
-            gpm = np.ones_like(img, dtype=bool)
-        m, med, sig = sigma_clipped_stats(img[gpm], sigma_lower=5.0, sigma_upper=5.0)
-        vmin = m - 1.0 * sig
-        vmax = m + 4.0 * sig
-    else:
-        vmin, vmax = vrange
 
-    # where to start and end the plot in the spatial direction
-    xstart = np.floor(np.min([left_slits, left_flex]) - 20)
-    if xstart < 0:
-        xstart = 0
-    xend = np.ceil(np.max([right_slits, right_flex]) + 20)
-    if xend > img.shape[1]:
-        xend = img.shape[1]
-    # where to start and end the plot in the spectral direction for both the upper and lower sections
-    lower_ystart = 0
-    lower_yend = img.shape[0]//6
-    upper_ystart = img.shape[0] - img.shape[0]//6
-    upper_yend = img.shape[0]
+    if debug:
+        # where to start and end the plot in the spatial&spectral direction
+        nxsnip = 1
+        spat_starts = [0]
+        spat_ends = [img.shape[1]]
+        upper_ystart = 0
+        upper_yend = img.shape[0]
 
-    # how many snippets to plot in the spatial direction
-    if slits.nslits == 1:
-        # if longslit plot 2 snippets, one for the left edge and one for the right edge
-        nxsnip = 2
-        snippet = (xend - xstart) // nxsnip
-        spat_starts = [xstart, xstart + snippet]
-        spat_ends = [xend - snippet, xend]
-    elif slits.nslits <= 4:
-        # if 4 or less slits plot 3 snippets equally spaced
-        nxsnip = 3
-        snippet = (xend - xstart) // nxsnip
-        spat_starts = [xstart, xstart + snippet, xstart + 2*snippet]
-        spat_ends = [xend - 2*snippet, xend - snippet, xend]
     else:
-        # if more than 4 slits plot 4 snippets
-        nxsnip = 4
-        # approximately, we want 4 slits in each snippet
-        snippet = 3 * (xend - xstart)/slits.nslits
-        # this would give nx many snippets
-        nx = int((xend - xstart) // snippet)
-        # but we want to plot only for of those snippets
-        step = nx / nxsnip
-        spat_starts = [xstart, xstart + step*snippet, xstart + 2*step*snippet, xstart + 3*step*snippet]
-        spat_ends = [xend - 3*step*snippet, xend - 2*step*snippet, xend - step*snippet, xend]
+        # where to start and end the plot in the spatial direction
+        xstart = int(np.floor(np.min([left_slits, left_flex]) - 20))
+        if xstart < 0:
+            xstart = 0
+        xend = int(np.ceil(np.max([right_slits, right_flex]) + 20))
+        if xend > img.shape[1]:
+            xend = img.shape[1]
+
+        # how many snippets to plot in the spatial direction
+        if slits.nslits == 1:
+            # if longslit plot 2 snippets, one for the left edge and one for the right edge
+            nxsnip = 2
+            snippet = int((xend - xstart) // nxsnip)
+            spat_starts = [xstart, xstart + snippet]
+            spat_ends = [xend - snippet, xend]
+        elif slits.nslits <= 12:
+            # if 12 or less slits plot 3-4 snippets equally spaced
+            nxsnip = 3 if slits.nslits <= 6 else 4
+            snippet = int((xend - xstart) // nxsnip)
+            spat_starts = [xstart, xstart + snippet, xstart + 2*snippet]
+            spat_ends = [xend - 2*snippet, xend - snippet, xend]
+            if slits.nslits > 6:
+                # add the 4th snippet
+                spat_starts.append(xstart + 3*snippet)
+                spat_ends.insert(0, xend - 3*snippet)
+        else:
+            # if more than 12 slits plot 4 snippets
+            nxsnip = 4
+            # approximately, we want 3 slits in each snippet
+            snippet = int(3 * (xend - xstart)/slits.nslits)
+            # this would give nx many snippets
+            nx = int((xend - xstart) // snippet)
+            # but we want to plot only nxsnip of those snippets
+            spat_starts = [xstart + i * snippet for i in np.linspace(0, nx - 1, nxsnip, dtype=int)]
+            spat_ends = [xstart + i * snippet for i in np.linspace(1, nx, nxsnip, dtype=int)]
+
+        # where to start and end the plot in the spectral direction for both the upper and lower sections
+        lower_ystart = 0
+        lower_yend = int(snippet)
+        upper_ystart = int(img.shape[0] - snippet)
+        upper_yend = img.shape[0]
 
     # plot the spatial flexure
-    fig = plt.figure(figsize=(nxsnip*4, 8))
-    gs = gridspec.GridSpec(2, nxsnip, figure=fig)
+    rows = 1 if debug else 2
+    fig = plt.figure(figsize=(9, 8) if debug else (nxsnip*4, 8))
+    gs = gridspec.GridSpec(rows, nxsnip, figure=fig)
     # spectral vector for plotting the slits
     spec = np.tile(np.arange(slits.nspec), (slits.nslits, 1)).T
     thin = 10
@@ -241,15 +233,27 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, out_dir=None):
                        Line2D([0], [0], color='C1', lw=1, ls='--', label='initial right edges'),
                        Line2D([0], [0], color='C3', lw=1, label='shifted left edges'),
                        Line2D([0], [0], color='C1', lw=1, label='shifted right edges')]
-    # loop over the 2 rows
-    for r in range(2):
-        _ystar, _yend = (lower_ystart, lower_yend) if r == 1 else (upper_ystart, upper_yend)
+    # loop over the 2 rows if we save the plot in the output directory, otherwise plot the whole detector
+    for r in range(rows):
+        _ystar, _yend = (upper_ystart, upper_yend) if r == 0 else (lower_ystart, lower_yend)
         # loop over the snippets
         for s in range(nxsnip):
             ax = fig.add_subplot(gs[r, s])
+            if vrange is None:
+                # get vmin and vmax for imshow
+                _img = img[_ystar:_yend, spat_starts[s]:spat_ends[s]]
+                _gpm = gpm[_ystar:_yend, spat_starts[s]:spat_ends[s]] if gpm is not None else np.ones_like(_img,
+                                                                                                           dtype=bool)
+                m, med, sig = sigma_clipped_stats(_img[_gpm], sigma_lower=5.0, sigma_upper=5.0)
+                vmin = m - 1.0 * sig
+                vmax = m + 4.0 * sig
+            else:
+                vmin, vmax = vrange
+            # imshow img instead of _img to show the actual pixel values in each snippet
             ax.imshow(img, origin='lower', vmin=vmin, vmax=vmax)
             ax.set_ylim(_ystar, _yend)
             ax.set_xlim(spat_starts[s], spat_ends[s])
+
             # plot the slits
             for i in range(slits.nslits):
                 plt.plot(left_slits[::thin, i], spec[::thin, i], color='C3', lw=1, ls='--', zorder=5)
@@ -258,14 +262,18 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, out_dir=None):
                 plt.plot(right_flex[::thin, i], spec[::thin, i], color='C1', lw=1, zorder=6)
             ax.tick_params(axis='both', labelsize=6)
             if r == 0 and s == 0:
+                plt.suptitle(f'Shift={shift:.1f} pixels', fontsize=18)
                 ax.legend(handles=legend_elements, fontsize=7)
-                ax.set_ylabel('Upper snippets', fontsize=18)
+                if not debug:
+                    ax.set_ylabel('Upper snippets', fontsize=18)
             elif r == 1 and s == 0:
                 ax.set_ylabel('Lower snippets', fontsize=18)
     plt.tight_layout()
-    plt.show()
-
-
+    if debug:
+        plt.show()
+    else:
+        fig.savefig(outfile, dpi=200)
+        plt.close(fig)
 
 
 def spec_flex_shift(obj_skyspec, sky_file=None, arx_skyspec=None, arx_fwhm_pix=None,
