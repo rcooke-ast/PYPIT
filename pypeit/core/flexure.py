@@ -87,8 +87,8 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
                 else arc.resize_mask2arc(slitmask.shape, sciimg)
 
     # create sobel images of both slitmask and the science image
-    sci_sobel, _ = trace.detect_slit_edges(_sciimg)
-    slits_sobel, _ = trace.detect_slit_edges(slitmask)
+    sci_sobel, _ = trace.detect_slit_edges(_sciimg, bpm=bpm)
+    slits_sobel, _ = trace.detect_slit_edges(slitmask, bpm=bpm)
     # collapse both sobel images along the spectral direction
     sci_smash, _, _ = sigma_clipped_stats(sci_sobel, axis=0, mask=bpm)
     slits_smash, _, _ = sigma_clipped_stats(slits_sobel, axis=0, mask=bpm)
@@ -100,7 +100,7 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     slits_smash[slits_smash < 0] *= -1
 
     # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
-    corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=None, sigdetect=sigdetect, debug=debug)
+    corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=50, sigdetect=sigdetect, debug=debug)
     corr_slits = wvutils.get_xcorr_arc(slits_smash, cont_sub=False, percent_ceil=None, input_thresh=1., debug=debug)
 
     # run x-cross correlation
