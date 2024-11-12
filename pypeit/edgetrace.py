@@ -901,11 +901,12 @@ class EdgeTraceSet(calibframe.CalibFrame):
         # slits first is that we may have to sync the slits again.
         ad_rm = False
         if self.par['rm_slits'] is not None:
-            rm_user_slits = trace.parse_user_slits(self.par['rm_slits'],
-                                                   self.traceimg.detector.det, rm=True)
-            if rm_user_slits is not None:
-                ad_rm = True
-                self.rm_user_traces(rm_user_slits)
+#            rm_user_slits = trace.parse_user_slits(self.par['rm_slits'],
+#                                                   self.traceimg.detector.det, rm=True)
+#            if rm_user_slits is not None:
+#                ad_rm = True
+#                self.rm_user_traces(rm_user_slits)
+            ad_rm = self.rm_user_traces(self.par['rm_slits'])
 
         # Add user traces
         if self.par['add_slits'] is not None:
@@ -2681,18 +2682,35 @@ class EdgeTraceSet(calibframe.CalibFrame):
 
     def rm_user_traces(self, rm_traces):
         """
-        Parse the user input traces to remove
+        Remove user-selected traces.
 
-        Args:
-            rm_user_traces (list):
-              y_spec, x_spat pairs
+        The traces must be synced into slits to run this function
 
-        Returns:
-
+        Parameters
+        ----------
+        rm_traces : :obj:`list`
+            A list of traces to remove.  List elements can be strings that
+            identify the detector, spectral pixel, and spatial pixel, or they
+            can be lists that provide the pixel (y_spec, x_spat) coordinates
+            directly.
         """
         if not self.is_synced:
             msgs.error('Trace removal should only be executed after traces have been '
                        'synchronized into left-right slit pairs; run sync()')
+
+        if not isinstance(rm_traces, list):
+            msgs.error(f'Input to rm_user_traces must be a list, not {type(rm_traces)}')
+
+        if isinstance(rm_traces[0], str):
+            _rm_traces = [list(parse.parse_image_location(rt, self.spectrograph)[1:])
+                            for rt in rm_traces]
+            _rm_traces = [rt[1:] for rt in _rm_traces if rt[0] == self.traceimg.detector.name]
+        else:
+            _rm_traces = rm_traces
+
+        if len(_rm_traces) == 0:
+            return False
+
         # Setup
         lefts = self.edge_fit[:, self.is_left]
         rights = self.edge_fit[:, self.is_right]
@@ -2723,6 +2741,7 @@ class EdgeTraceSet(calibframe.CalibFrame):
         # TODO: Add rebuild_pca ?
         # Remove
         self.remove_traces(indx)
+        return True
 
     # TODO:
     #   - Add an option to distinguish between an actual remove and a flagging
@@ -4153,6 +4172,23 @@ class EdgeTraceSet(calibframe.CalibFrame):
                       exist, the function will try to (re)build it.
 
         """
+
+        if not isinstance(user_traces, list):
+            msgs.error(f'Input to add_user_traces must be a list, not {type(user_traces)}')
+
+        if isinstance(user_traces[0], str):
+            _usr_traces = [list(parse.parse_image_location(ut, self.spectrograph)[1:])
+                            for ut in user_traces]
+            _usr_traces = [ut[1:] for ut in _usr_traces if ut[0] == self.traceimg.detector.name]
+        else:
+            _usr_traces = user_traces
+
+        if len(_usr_traces) == 0:
+            return False
+
+        embed()
+        exit()
+
         #msgs.info("Adding new slits at x0, x1 (left, right)".format(x_spat0, x_spat1))
         # Number of added slits
         n_add = len(user_traces)
