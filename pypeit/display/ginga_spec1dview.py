@@ -384,6 +384,15 @@ class Spec1dView(GingaPlugin.LocalPlugin):
         else:
             self.w.extraction.set_enabled(True)
 
+        # look for OPT_FLAM_IVAR or BOX_FLAM_IVAR
+        # if don't have, then fluxed==True cannot be used
+        if specobj[f'{self.extraction}_FLAM_IVAR'] is None:
+            self.w.fluxed.set_text('False')
+            self.fluxed = False
+            self.w.fluxed.set_enabled(False)
+        else:
+            self.w.fluxed.set_enabled(True)
+
         wave, flux, ivar, gpm = specobj.to_arrays(extraction=self.extraction,
                                                   fluxed=self.fluxed)
         if self.fluxed and ivar is None:
