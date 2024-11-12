@@ -364,18 +364,33 @@ class Spec1dView(GingaPlugin.LocalPlugin):
         self.autozoom_plot()
 
     def recalc(self):
-        """Reprocess the chosen extension, based on current choices for extraction
-        method, fluxing and masking.
+        """Reprocess the chosen extension, based on current choices for
+        extraction method, fluxing and masking.
 
         Replot everything as a result.
         """
         specobj = self.sobjs[self.exten]
+
+        # check if we have BOX or OPT extractions and adjust UI
+        # accordingly
         if specobj['OPT_WAVE'] is None:
-            self.fv.show_error("Spectrum not extracted with OPT.  Try --extract BOX")
-            return
+            self.w.extraction.set_text('BOX')
+            self.extraction = 'BOX'
+            self.w.extraction.set_enabled(False)
+        elif specobj['BOX_WAVE'] is None:
+            self.w.extraction.set_text('OPT')
+            self.extraction = 'OPT'
+            self.w.extraction.set_enabled(False)
+        else:
+            self.w.extraction.set_enabled(True)
 
         wave, flux, ivar, gpm = specobj.to_arrays(extraction=self.extraction,
                                                   fluxed=self.fluxed)
+        if self.fluxed and ivar is None:
+            # <-- fluxed=True cannot be used
+            self.fv.show_error("fluxed=True cannot be used with this data")
+            return
+
         sig = np.sqrt(utils.inverse(ivar))
         wave_gpm = wave > 1.0
         wave, flux, sig, gpm = (wave[wave_gpm], flux[wave_gpm],
