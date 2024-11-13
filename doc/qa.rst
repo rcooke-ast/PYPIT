@@ -112,10 +112,10 @@ For each processed, science exposure there are a series of
 PNGs generated, per detector and (sometimes) per slit.
 
 
-Flexure QA
-----------
+Spectral Flexure QA
+-------------------
 
-If a flexure correction was performed (default), the fit to the
+If a spectral flexure correction was performed (default), the fit to the
 correlation lags per object
 is shown and the adopted shift is listed.  Here is
 an example:
@@ -133,3 +133,14 @@ Here is an example:
 .. figure:: figures/qa/flex_sky_armlsd.jpg
    :align: center
 
+Spatial Flexure QA
+------------------
+
+If a spatial flexure correction was performed, the result of the correction
+is shown in a plot like the one below.  The plot shows a few snippets of the
+science/standard spectral image with overlaid the slit edges as traced in the
+``trace`` image (dashed lines) and after applying the spatial flexure correction
+(solid lines). The value of the shift is also reported on the top of the plot.
+
+.. figure:: figures/qa/spat_flex_corr.jpg
+   :align: center
