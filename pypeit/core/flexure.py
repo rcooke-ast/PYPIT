@@ -100,7 +100,7 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     slits_smash[slits_smash < 0] *= -1
 
     # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
-    corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=50, sigdetect=sigdetect, debug=debug)
+    corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=10., sigdetect=sigdetect, debug=debug)
     corr_slits = wvutils.get_xcorr_arc(slits_smash, cont_sub=False, percent_ceil=None, input_thresh=1., debug=debug)
 
     # run x-cross correlation
@@ -183,11 +183,7 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, outfile=None):
     else:
         # where to start and end the plot in the spatial direction
         xstart = int(np.floor(np.min([left_slits, left_flex]) - 20))
-        if xstart < 0:
-            xstart = 0
         xend = int(np.ceil(np.max([right_slits, right_flex]) + 20))
-        if xend > img.shape[1]:
-            xend = img.shape[1]
 
         # how many snippets to plot in the spatial direction
         if slits.nslits == 1:
@@ -243,9 +239,10 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, outfile=None):
             ax = fig.add_subplot(gs[r, s])
             if vrange is None:
                 # get vmin and vmax for imshow
-                _img = img[_ystar:_yend, spat_starts[s]:spat_ends[s]]
-                _gpm = gpm[_ystar:_yend, spat_starts[s]:spat_ends[s]] if gpm is not None else np.ones_like(_img,
-                                                                                                           dtype=bool)
+                _xstart = spat_starts[s] if spat_starts[s] >= 0 else 0
+                _xend = spat_ends[s] if spat_ends[s] <= img.shape[1] else img.shape[1]
+                _img = img[_ystar:_yend, _xstart:_xend]
+                _gpm = gpm[_ystar:_yend, _xstart:_xend] if gpm is not None else np.ones_like(_img, dtype=bool)
                 m, med, sig = sigma_clipped_stats(_img[_gpm], sigma_lower=5.0, sigma_upper=5.0)
                 vmin = m - 1.0 * sig
                 vmax = m + 4.0 * sig
