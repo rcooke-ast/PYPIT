@@ -74,6 +74,11 @@ Instrument-specific Updates
         - Platescale updated from an order-dependent value, to being 0.164
           arcsec/pixel for all orders
 - Add new P200/DBSP reid_arxiv template for 1200/7100 with D55 dichroic
+- GMOS-South: PypeIt reductions of GMOS-South MOS observations now properly
+  account for tilted slits in the mask design file. Previously, these data
+  could only be reduced without including any information from the slitmask
+  design.
+
 
 Script Changes
 --------------
