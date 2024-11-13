@@ -1111,8 +1111,8 @@ def full_template(spec, lamps, par, ok_mask, det, binspectral, nsnippet=2, slit_
         lines_wav = template_dict['lines_wav'] 
         lines_fit_ord = template_dict['lines_fit_ord']
 
-    temp_wv = temp_wv_og
-    temp_spec = temp_spec_og
+    temp_wv = np.copy(temp_wv_og)
+    temp_spec = np.copy(temp_spec_og)
 
     # Deal with binning (not yet tested)
     if binspectral != temp_bin:
@@ -1145,12 +1145,12 @@ def full_template(spec, lamps, par, ok_mask, det, binspectral, nsnippet=2, slit_
         obs_spec_i = spec[:,slit]
         # get FWHM for this slit
         fwhm = set_fwhm(par, measured_fwhm=measured_fwhms[slit], verbose=True)
-
+        
         # Find the shift
         ncomb = temp_spec.size
         # Remove the continuum before adding the padding to obs_spec_i
         _, _, _, _, obs_spec_cont_sub = wvutils.arc_lines_from_spec(obs_spec_i)
-        _, _, _, _, templ_spec_cont_sub = wvutils.arc_lines_from_spec(temp_spec)
+        _, _, _, _, templ_spec_cont_sub = wvutils.arc_lines_from_spec(temp_spec.reshape(-1))
         # Pad
         pad_spec = np.zeros_like(temp_spec)
         nspec = len(obs_spec_i)
@@ -2339,7 +2339,7 @@ class HolyGrail:
                 wvc_gd_jfh[cntr] = wave_soln[self._npix//2]
                 dsp_gd_jfh[cntr]= np.median(wave_soln - np.roll(wave_soln,1))
                 cntr += 1
-        srt = np.argsort(wvc_gd_jfh)
+        srt = np.argsort(wvc_gd_jfh, kind='stable')
         sort_idx = idx_gd[srt]
         sort_wvc = wvc_gd[srt]
         sort_dsp = dsp_gd[srt]
@@ -3189,7 +3189,7 @@ class HolyGrail:
             if self._outroot is not None:
                 # Write IDs
                 out_dict = dict(pix=use_tcent, IDs=self._all_patt_dict[str(slit)]['IDs'])
-                jdict = ltu.jsonify(out_dict)
+                jdict = utils.jsonify(out_dict)
                 ltu.savejson(self._outroot + slittxt + '.json', jdict, easy_to_read=True, overwrite=True)
                 msgs.info("Wrote: {:s}".format(self._outroot + slittxt + '.json'))
 
