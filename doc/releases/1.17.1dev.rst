@@ -1,0 +1,55 @@
+
+Version 1.17.1dev
+=================
+
+Installation Changes
+--------------------
+
+
+
+Dependency Changes
+------------------
+
+
+
+Functionality/Performance Improvements and Additions
+----------------------------------------------------
+
+- Improved the code to compute the spatial flexure correction and added a QA
+  plot to inspect the results.  Two new parset parameters, `spat_flexure_sigdetect`
+  and `spat_flexure_vrange`, were added to control the detection of the slit edges
+  (used to compute the flexure) and the stretching of the image in the QA plot,
+  respectively.
+
+
+Instrument-specific Updates
+---------------------------
+
+
+
+Script Changes
+--------------
+
+
+
+Datamodel Changes
+-----------------
+
+
+
+Under-the-hood Improvements
+---------------------------
+
+
+
+Bug Fixes
+---------
+
+
+
+
+
+
+
+
+
