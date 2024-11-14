@@ -16,14 +16,15 @@ import scipy.special
 from astropy import table
 from astropy.io import fits
 
+from pypeit import msgs
+from pypeit import dataPaths
+from pypeit import io
 from pypeit.core import flux_calib
 from pypeit.core.wavecal import wvutils
 from pypeit.core import coadd
 from pypeit.core import fitting
-from pypeit import data
 from pypeit import specobjs
 from pypeit import utils
-from pypeit import msgs
 from pypeit import onespec
 
 from pypeit.spectrographs.util import load_spectrograph
@@ -64,8 +65,8 @@ def qso_init_pca(filename,wave_grid,redshift,npca):
     # The relevant pieces are the wavelengths (wave_pca_c), the PCA components (pca_comp_c),
     # and the Gaussian mixture model prior (mix_fit)
 
-    # The PCA file location is provided by data.Paths.tel_model
-    file_with_path = data.Paths.tel_model / filename
+    # The PCA file location is provided by dataPaths.tel_model
+    file_with_path = dataPaths.tel_model.get_file_path(filename)
 
     loglam = np.log10(wave_grid)
     dloglam = np.median(loglam[1:] - loglam[:-1])
@@ -171,7 +172,7 @@ def read_telluric_pca(filename, wave_min=None, wave_max=None, pad_frac=0.10):
             - teltype: Type of telluric model, i.e. 'pca'
     """
     # load_telluric_grid() takes care of path and existance check
-    hdul = data.load_telluric_grid(filename)
+    hdul = io.load_telluric_grid(filename)
     wave_grid_full = hdul[1].data
     pca_comp_full = hdul[0].data
     nspec_full = wave_grid_full.size
@@ -228,7 +229,7 @@ def read_telluric_grid(filename, wave_min=None, wave_max=None, pad_frac=0.10):
             - teltype: Type of telluric model, i.e. 'grid'
     """
     # load_telluric_grid() takes care of path and existance check
-    hdul = data.load_telluric_grid(filename)
+    hdul = io.load_telluric_grid(filename)
     wave_grid_full = 10.0*hdul[1].data
     model_grid_full = hdul[0].data
     nspec_full = wave_grid_full.size
@@ -315,8 +316,11 @@ def conv_telluric(tell_model, dloglam, res):
             Resolution convolved telluric model. Shape = same size as input tell_model.
 
     """
-
-
+    # Check the input values
+    if res <= 0.0:
+        msgs.error('Resolution must be positive.')
+    if dloglam == 0.0:
+        msgs.error('The telluric model grid has zero spacing in log wavelength. This is not supported.')
     pix_per_sigma = 1.0/res/(dloglam*np.log(10.0))/(2.0 * np.sqrt(2.0 * np.log(2))) # number of dloglam pixels per 1 sigma dispersion
     sig2pix = 1.0/pix_per_sigma # number of sigma per 1 pix
     if sig2pix > 2.0:
@@ -332,6 +336,7 @@ def conv_telluric(tell_model, dloglam, res):
     g /= g.sum()
     conv_model = scipy.signal.convolve(tell_model,g,mode='same')
     return conv_model
+
 
 def shift_telluric(tell_model, loglam, dloglam, shift, stretch):
     """
@@ -362,6 +367,7 @@ def shift_telluric(tell_model, loglam, dloglam, shift, stretch):
     #loglam_shift = loglam + shift*dloglam
     tell_model_shift = np.interp(loglam_shift, loglam, tell_model)
     return tell_model_shift
+
 
 def eval_telluric(theta_tell, tell_dict, ind_lower=None, ind_upper=None):
     """
@@ -768,6 +774,7 @@ def general_spec_reader(specfile, ret_flam=False, chk_version=False, ret_order_s
             raise ValueError("This is an ugly hack until the DataContainer bug is fixed")
         head = sobjs.header
         wave, counts, counts_ivar, counts_gpm = unpack_orders(sobjs, ret_flam=ret_flam)
+        wave_grid_mid = None
         # Made a change to the if statement to account for unpack_orders now squeezing returned arrays
         #if (head['PYPELINE'] !='Echelle') and (wave.shape[1]>1)
         if (head['PYPELINE'] !='Echelle') and (wave.ndim>1):
@@ -2409,18 +2416,12 @@ class Telluric(datamodel.DataContainer):
         self.disp = disp or debug
         self.sensfunc = sensfunc
         self.debug = debug
-        self.log10_blaze_func_in_arr = None
 
         # 2) Reshape all spectra to be (nspec, norders)
-        if log10_blaze_function is not None:
+        self.wave_in_arr, self.flux_in_arr, self.ivar_in_arr, self.mask_in_arr, self.log10_blaze_func_in_arr, \
+            self.nspec_in, self.norders = utils.spec_atleast_2d(
+            wave, flux, ivar, gpm, log10_blaze_function=log10_blaze_function)
 
-            self.wave_in_arr, self.flux_in_arr, self.ivar_in_arr, self.mask_in_arr, self.log10_blaze_func_in_arr, \
-                self.nspec_in, self.norders = utils.spec_atleast_2d(
-                wave, flux, ivar, gpm, log10_blaze_function=log10_blaze_function)
-        else:
-            self.wave_in_arr, self.flux_in_arr, self.ivar_in_arr, self.mask_in_arr, _, \
-                self.nspec_in, self.norders = utils.spec_atleast_2d(
-                wave, flux, ivar, gpm)
         # 3) Read the telluric grid and initalize associated parameters
         wv_gpm = self.wave_in_arr > 1.0
         if self.teltype == 'pca':
@@ -2802,6 +2803,6 @@ class Telluric(datamodel.DataContainer):
                 tell_med[iord] = np.mean(np.exp(-np.sinh(tell_model_mean)))
 
         # Perform fits in order of telluric strength
-        return tell_med.argsort()
+        return tell_med.argsort(kind='stable')
 
 

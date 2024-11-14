@@ -13,6 +13,7 @@
 .. _str.splitlines: https://docs.python.org/3/library/stdtypes.html#str.splitlines
 .. _textwrap.wrap: https://docs.python.org/3/library/textwrap.html#textwrap.wrap
 .. _Path: https://docs.python.org/3/library/pathlib.html
+.. _Path.glob: https://docs.python.org/3.9/library/pathlib.html#pathlib.Path.glob
 .. _io.TextIOWrapper: https://docs.python.org/3/library/io.html#io.TextIOWrapper
 
 .. numpy
@@ -95,6 +96,8 @@
 .. _astropy.stats.sigma_clipped_stats: https://docs.astropy.org/en/stable/api/astropy.stats.sigma_clipped_stats.html
 .. _astropy.units.Unit: https://docs.astropy.org/en/stable/api/astropy.units.Unit.html
 .. _astropy.units.Quantity: https://docs.astropy.org/en/stable/api/astropy.units.Quantity.html
+.. _astropy.utils.data: https://docs.astropy.org/en/stable/utils/data.html
+.. _astropy.utils.data.download_file: https://docs.astropy.org/en/stable/api/astropy.utils.data.download_file.html
 
 .. scikit
 .. _sklearn.decomposition.PCA: https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html
@@ -115,13 +118,17 @@
 .. _Google-format docstrings: https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html#example-google
 .. _Numpy-format docstrings: https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html#example-numpy
 
+.. git/github
+.. _github.Repository: https://pygithub.readthedocs.io/en/latest/examples/Repository.html
+.. _github.ContentFile: https://pygithub.readthedocs.io/en/latest/github_objects/ContentFile.html
+
 .. misc packages
 .. _bumpversion: https://pypi.org/project/bumpversion/
 .. _rclone: https://rclone.org/
 .. _pip: https://pip.pypa.io/en/stable/
 .. _anaconda: https://www.anaconda.com/products/individual
 .. _conda: https://docs.conda.io/projects/conda/en/latest/index.html
-.. _virtualenv: https://virtualenv.pypa.io/en/latest/
+.. _venv: https://docs.python.org/3/library/venv.html
 .. _pdb: https://docs.python.org/3/library/pdb.html
 .. _IPython.embed: https://ipython.readthedocs.io/en/stable/api/generated/IPython.terminal.embed.html#function
 .. _pytest: https://docs.pytest.org/en/latest/

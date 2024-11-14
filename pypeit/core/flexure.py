@@ -17,6 +17,7 @@ import matplotlib
 from astropy import stats
 from astropy import units
 from astropy.io import ascii
+from astropy.table import Table
 import scipy.signal
 import scipy.optimize as opt
 from scipy import interpolate
@@ -24,10 +25,11 @@ from scipy import interpolate
 from linetools.spectra import xspectrum1d
 
 from pypeit import msgs
+from pypeit import dataPaths
+from pypeit import io
 from pypeit import utils
 from pypeit.display import display
 from pypeit.core.wavecal import autoid
-from pypeit.core.wavecal import wvutils
 from pypeit.core import arc
 from pypeit.core import extract
 from pypeit.core import fitting
@@ -36,7 +38,6 @@ from pypeit.datamodel import DataContainer
 from pypeit.images.detector_container import DetectorContainer
 from pypeit.images.mosaic import Mosaic
 from pypeit import specobj, specobjs
-from pypeit import data
 from pypeit import wavemodel
 
 from IPython import embed
@@ -907,7 +908,7 @@ def get_archive_spectrum(sky_file, obj_skyspec=None, spec_fwhm_pix=None):
     if sky_file != 'model':
         # Load Archive. Save the fwhm to avoid the performance hit from calling it on the archive sky spectrum
         # multiple times
-        sky_spectrum = data.load_sky_spectrum(sky_file)
+        sky_spectrum = io.load_sky_spectrum(sky_file)
         # get arxiv sky spectrum resolution (FWHM in pixels)
         arx_fwhm_pix = autoid.measure_fwhm(sky_spectrum.flux.value, sigdetect=4., fwhm=4.)
         if arx_fwhm_pix is None:
@@ -1218,7 +1219,8 @@ def calculate_image_phase(imref, imshift, gpm_ref=None, gpm_shift=None, maskval=
     if gpm_shift is None:
         gpm_shift = np.ones(imshift.shape, dtype=bool) if maskval is None else imshift != maskval
     # Get a crude estimate of the shift
-    shift = phase_cross_correlation(imref, imshift, reference_mask=gpm_ref, moving_mask=gpm_shift).astype(int)
+    shift, _, _ = phase_cross_correlation(imref, imshift, reference_mask=gpm_ref, moving_mask=gpm_shift)
+    shift = shift.astype(int)
     # Extract the overlapping portion of the images
     exref = imref.copy()
     exshf = imshift.copy()
@@ -1467,7 +1469,7 @@ class MultiSlitFlexure(DataContainer):
         self.specobjs = specobjs.SpecObjs.from_fitsfile(self.s1dfile, chk_version=False) 
         #  Sky lines -- This one is ASCII, so don't use load_sky_spectrum()
         sky_file = 'sky_single_mg.dat'
-        self.sky_table = ascii.read(data.Paths.sky_spec / sky_file)
+        self.sky_table = ascii.read(dataPaths.sky_spec.get_file_path(sky_file))
 
     # NOTE: If you make changes to how this object is bundled into the output
     # datamodel, make sure you update the documentation in

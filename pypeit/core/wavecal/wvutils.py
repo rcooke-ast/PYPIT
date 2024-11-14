@@ -17,7 +17,8 @@ from astropy import convolution
 from astropy import constants
 
 from pypeit import msgs
-from pypeit import utils, data
+from pypeit import cache
+from pypeit import utils
 from pypeit.core import arc
 from pypeit.pypmsgs import PypeItError
 
@@ -135,9 +136,13 @@ def get_sampling(waves, pix_per_R=3.0):
         wave_diff_flat += np.diff(wave_good).tolist()
         dloglam_flat += np.diff(np.log10(wave_good)).tolist()
 
-
+    # Compute the median wavelength spacing
     dwave = np.median(wave_diff_flat)
     dloglam = np.median(dloglam_flat)
+    # Check that this won't introduce a divide by zero
+    if dloglam == 0.0:
+        msgs.error('The wavelength sampling has zero spacing in log wavelength. This is not supported.')
+    # Compute a guess of the resolution
     resln_guess = 1.0 / (pix_per_R* dloglam * np.log(10.0))
     pix_per_sigma = 1.0 / resln_guess / (dloglam * np.log(10.0)) / (2.0 * np.sqrt(2.0 * np.log(2)))
     return dwave, dloglam, resln_guess, pix_per_sigma
@@ -280,6 +285,9 @@ def get_wave_grid(waves=None, gpms=None, wave_method='linear', iref=0, wave_grid
             wave_grid = np.power(10.0,newloglam)
 
         elif wave_method == 'iref': # Use the iref index wavelength array
+            msgs.info(f'iref for the list is set to {iref}')
+            msgs.info(f'The shape of the list is: {np.shape(waves)}')
+            msgs.info(f'shape of the first wave_grid in the list is: {np.shape(waves[iref])}')
             wave_tmp = waves[iref]
             wave_grid = wave_tmp[wave_tmp > 1.0]
             if spec_samp_fact != 1: # adjust sampling via internal interpolation
@@ -883,7 +891,7 @@ def wavegrid(wave_min, wave_max, dwave, spec_samp_fact=1.0, log10=False):
 
 def write_template(nwwv, nwspec, binspec, outpath, outroot, det_cut=None,
                    order=None, lines_pix_arr=None, lines_wav_arr=None,
-                   lines_fit_ord=None, overwrite=True, cache=False):
+                   lines_fit_ord=None, overwrite=True, to_cache=False):
     """
     Write the template spectrum into a binary FITS table
 
@@ -905,7 +913,7 @@ def write_template(nwwv, nwspec, binspec, outpath, outroot, det_cut=None,
             Echelle order numbers
         overwrite (bool, optional):
             If True, overwrite any existing file
-        cache (bool, optional):
+        to_cache (bool, optional):
             Store the wavelength solution in the pypeit cache?
         lines_pix_arr (`numpy.ndarray`_, optional):
             Pixel values of identified arc line centroids
@@ -935,9 +943,9 @@ def write_template(nwwv, nwspec, binspec, outpath, outroot, det_cut=None,
     outfile = os.path.join(outpath, outroot)
     tbl.write(outfile, overwrite=overwrite)
     msgs.info(f"Your arxiv solution has been written to {outfile}\n")
-    if cache:
+    if to_cache:
         # Also copy the file to the cache for direct use
-        data.write_file_to_cache(outroot, outroot, "arc_lines/reid_arxiv")
+        cache.write_file_to_cache(outroot, outroot, "arc_lines/reid_arxiv")
 
         msgs.info(f"Your arxiv solution has also been cached.{msgs.newline()}"
                   f"To utilize this wavelength solution, insert the{msgs.newline()}"

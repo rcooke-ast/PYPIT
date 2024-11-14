@@ -13,7 +13,7 @@ import numpy as np
 from astropy.io import fits
 
 from pypeit import specobj
-from pypeit.tests.tstutils import data_path
+from pypeit.tests.tstutils import data_output_path
 from pypeit import msgs
 
 
@@ -57,7 +57,7 @@ def test_io():
     sobj = specobj.SpecObj('MultiSlit', 'DET01', SLITID=0)
     # Can we handle 1 array?
     sobj['BOX_WAVE'] = np.arange(100).astype(float)
-    ofile = data_path('tmp.fits')
+    ofile = data_output_path('tmp.fits')
     sobj.to_file(ofile, overwrite=True)
     _sobj = specobj.SpecObj.from_file(ofile)
     assert np.array_equal(sobj.BOX_WAVE, _sobj.BOX_WAVE)
@@ -74,7 +74,7 @@ def test_iotwo():
     sobj['BOX_MASK'] = np.arange(100).astype(bool)
 
     # Write table
-    ofile = data_path('tmp.fits')
+    ofile = data_output_path('tmp.fits')
     sobj.to_file(ofile, overwrite=True)
     sobj2 = specobj.SpecObj.from_file(ofile)
     #
@@ -101,7 +101,8 @@ def test_from_arrays():
     wave = np.linspace(5000., 6000, 1000)
     flux = np.ones_like(wave)
     ivar = 0.1*np.ones_like(wave)
-    sobj = specobj.SpecObj.from_arrays('MultiSlit', wave, flux, ivar)
+    flat = np.ones_like(wave)
+    sobj = specobj.SpecObj.from_arrays('MultiSlit', wave, flux, ivar, flat)
 
     assert sobj.OPT_WAVE[0] == 5000.
 

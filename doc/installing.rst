@@ -36,7 +36,7 @@ Setup a clean python environment
 
 PypeIt is available from the `Python Package Index <https://pypi.org/project/pypeit/>`_
 (PyPI) and is installed via ``pip``.  This process also installs and/or upgrades
-PypeIt's :ref:`dependencies`, and for this reason, we highly (!!) recommend you
+PypeIt's :ref:`dependencies`, and for this reason you should always
 first set up a clean python environment in which to install PypeIt.  This mitigates
 any possible dependency conflicts with other packages you use.
 
@@ -47,20 +47,18 @@ You can set up a new python environment using either `conda`_:
     conda create -n pypeit python=3.11
     conda activate pypeit
 
-or `virtualenv`_:
+or `venv`_:
 
 .. code-block:: console
 
-    virtualenv pypeit
+    python -m venv pypeit
     source pypeit/bin/activate
 
 See the `Managing Environments with Conda
-<https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html>`_
-and/or `Virtualenv documentation <https://virtualenv.pypa.io/en/latest/>`_
-for more details. See also `virtualenvwrapper
-<https://virtualenvwrapper.readthedocs.io/en/latest/>`_ as an option for more
-easily managing `virtualenv`_ environments. The `conda`_ installation method described below
-creates an environment for you.
+<https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html>`__
+and/or the `venv documentation <https://docs.python.org/3/library/venv.html>`__ for
+more details.  The `conda`_ installation method described below creates an
+environment for you.
 
 .. _installing-pip:
 
@@ -142,7 +140,7 @@ dependency ``specutils`` via ``pip``.  To use this:
 This environment should now be ready to use and contain the latest official
 ``pypeit`` release.
 
-
+.. _upgrade:
 
 Upgrading to a new version of PypeIt
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -154,19 +152,42 @@ PypeIt, upgrading the package should simply be a matter of executing:
 
     pip install pypeit --upgrade
 
-If this causes problems (*e.g.*, a new PypeIt script is unavailable or
-you encounter script errors), first try uninstalling (``pip uninstall
-pypeit``) and then reinstalling.
+If this causes problems (*e.g.*, a new PypeIt script is unavailable or you
+encounter script errors), first try uninstalling (``pip uninstall pypeit``) and
+then reinstalling.  There are two important things to keep in mind when
+upgrading:
 
-.. warning::
+ - **PypeIt datamodels are not necessarily backwards-compatible.**  This means
+   that, *e.g.*, ``pypeit_show_2dspec`` may fault when trying to view
+   ``spec2d*`` files produced with your existing PypeIt version after upgrading
+   to a new version.  **The best approach is to always re-reduce data you're
+   still working with anytime you update PypeIt.**
 
-    Whenever you upgrade PypeIt, beware that this may include changes to the
-    output file data models.  These changes are not required to be
-    backwards-compatible, meaning that, *e.g.*, ``pypeit_show_2dspec`` may fault
-    when trying to view ``spec2d*`` files produced with your existing PypeIt
-    version after upgrading to a new version.  **The best approach is to always
-    re-reduce data you're still working with anytime you update PypeIt.**
+ - As opposed to earlier versions of PypeIt, the cached files are now
+   version-specific.  **Every time you upgrade pypeit, we recommend deleting
+   your existing cache and starting fresh!**  The only caveat to this is if you
+   are actively using multiple versions of PypeIt, meaning you will still be
+   using old versions of the cached files.  Otherwise, you will end up with
+   multiple versions of the same file on disk.  **Importantly**, the code also
+   considers local files you have installed (using, e.g.,
+   ``pypeit_install_linelist``) to be version specific.  If you have installed
+   such files, you will need to re-install them *after* upgrading.
 
+If you have locally installed files, your upgrade may look something like this:
+
+.. code-block:: console
+
+    pypeit_clean_cache --remove_all
+    pip install pypeit --upgrade
+    pypeit_install_linelist /path/to/my/linelists/*_lines.dat
+
+.. note::
+
+    If you find particular data files useful for your reductions, please
+    consider issuing a PR to include them file in the PypeIt repository.  This
+    helps the community, and it means you'll avoid these upgrading
+    complications.
+    
 .. _m1_macs:
 
 User Installation on Apple Silicon-based Macs
@@ -199,102 +220,221 @@ for x86-64:
 Solutions/Recommendations/Feedback for these installation options are welcome;
 please `Submit an issue`_.
 
+.. _install_windows:
+
+User Installation on Windows
+---------------------------------------------
+
+#. Download `Python for Windows <https://www.python.org/downloads/windows/>`_.
+
+#. Run the installer.
+    
+    * Make sure "Add python.exe to Path" or "Add Python to environment
+      variables" is selected before installing.
+
+    * If you have Admin privileges click "Disable path length limit" after the
+      installation succeeds.
+
+#. Download and run the `Visual Studio build tools
+   <https://visualstudio.microsoft.com/visual-cpp-build-tools/>`_ installer.
+
+    * Only "Desktop Development with C++" needs to be checked.
+
+    * Click install
+
+#. Create a virtual environment as in `Setup a clean python environment
+   <environment_>`__ and install PypeIt as described above.
+
+If running ``python`` on Windows brings up a window for the Microsoft Store you
+may want to change the application alias.  This is under ``Settings -> Apps ->
+App execution aliases`` on Windows 10 and ``Settings -> Apps -> Advanced app
+settings -> App execution aliases`` on Windows 11. Disable the ``App Installer``
+options for the ``python.exe`` and ``python3.exe`` executables.
+ 
+An alternative for running under Windows is to install the `Windows Subsystem
+for Linux (WSL) <https://learn.microsoft.com/en-us/windows/wsl/install>`_.  This
+in effect allows you to run PypeIt under Linux under Windows.
+
 ----
 
 .. _data_installation:
 
-Additional Data
-===============
+Additional Data and the PypeIt Cache
+====================================
 
-Some data used by PypeIt are either not kept in the GitHub repository or distributed
-via `pip`_ because of their large size.  These include:
-
- - Wavelength calibration template (``reid-arxiv``) files for all instruments,
- - Canned sensitivity function (``sensfunc``) files for Mauna Kea,
- - Sky transmission data (``skisim``) files,
- - Atmospheric model grids used for telluric correction and flux calibration, and
- - Canned data-reduction products used by quick-look scripts.
-
-To ease the downloading and storing of these files, PypeIt now uses the ``astropy``
-download/cache system to maintain copies of these files in a user-writeable location
-that is independent of the PypeIt installation.  For most users, this will be
-something like ``~/.pypeit/cache``, but is adjustable via ``astropy``'s `configuration
-system <https://docs.astropy.org/en/stable/config/index.html#astropy-config>`__.  By
+To limit the disk-space required for installation, most of PypeIt's static data
+files are either not kept in the GitHub repository or distributed via `pip`_.
+PypeIt uses the generalized cache system `provided by Astropy
+<https://docs.astropy.org/en/stable/utils/data.html>`__ to interface with the
+remote data, which maintains copies of the data files in a user-writeable
+location that is independent of the PypeIt installation.  For most users, this
+will be ``~/.pypeit/cache``, but the exact location can be set directly using
+``astropy``'s `configuration system
+<https://docs.astropy.org/en/stable/config/index.html#astropy-config>`__.  By
 default, PypeIt will download necessary files at runtime if they are not already
-cached.
+cached.  Regardless of their location, remote or local, PypeIt essentially
+organizes all its reference data into subdirectories of the ``pypeit/data``
+directory in your package installation.  The following table gives the reference
+name, subdirectory, and remote host for data in this directory tree:
+
+.. _data_dir:
+
+.. include:: include/data_dir.rst
+
+Although most cached files are hosted on GitHub, a few particularly large files
+are hosted on Amazon S3 cloud storage.  Note that a host of ``...`` means that
+all files should be distributed with your package installation for these
+directories.
+
+As stated above, PypeIt will download remote files and store them in your cache
+as they're needed to reduce your data.  I.e., you should mostly be able to
+ignore the fact that the relevant files are remote, as long as you're running
+the reductions while connected to the internet.  However, if you're preparing to
+run a set of reductions and you would prefer to pre-load data that you expect to
+need, we provide a few specific scripts for interacting the cache, as described
+below.
+
+.. _view-cache:
+
+Viewing/Removing Files in the Cache
+-----------------------------------
+
+The ``pypeit_clean_cache`` script allows you to view and/or delete files in the
+cache.  To list the cache contents, use the ``-l`` option:
+
+.. code-block:: console
+
+    % pypeit_clean_cache -l
+           HOST               BRANCH               SUBDIR FILE
+         github               1.15.1                tests gemini_gnirs_32_1_spat_fit.npz
+         github               1.15.1            sensfuncs keck_deimos_600ZD_sensfunc.fits
+       s3_cloud                  ...   telluric/atm_grids TellPCA_3000_26000_R10000.fits
+         github               1.15.1                tests solution_arrays.npz
+
+Note that the files hosted on GitHub will be specific to a branch or version of
+PypeIt.  **Every time you upgrade pypeit, we recommend deleting your existing
+cache and starting fresh!**
+
+**Local files** that have been installed into the cache (e.g., using
+``pypeit_install_linelist``) will appear as being hosted on GitHub and be
+specific to the version of the code used to install it.  When you install local
+files, keep two things in mind:
+ 
+#. The current cache system *does not* keep track of the original on-disk
+   location of these files.  When you install these local files into the cache,
+   the original file will remain (as long as you don't move/delete it yourself),
+   and they will not be removed by ``pypeit_clean_cache``.
+ 
+#. However, as far as the cache is concerned, these files are specific to a
+   given PypeIt version.  This means **you'll need to re-install them** when you
+   upgrade PypeIt; otherwise, PypeIt will not recognize their existence in the
+   cache.  We discuss upgrading :ref:`above<upgrade>`.
+   
+Some example uses for removing files include:
+
+ - To remove your entire cache: ``pypeit_clean_cache --remove_all``.
+
+ - To remove cached files for a specific version: ``pypeit_clean_cache -v 1.15.0``
+
+ - To remove a specific file: ``pypeit_clean_cache -p gemini_gnirs_32_1_spat_fit.npz``
+
+Pre-loading Cache Data
+----------------------
 
 Because a fresh install of PypeIt does not contain all of the ancillary data that
 might be required for data reduction, users planning to run the pipeline without an
 internet connection will need to cache the necessary data files ahead of time.  To ease
-this process, a script ``pypeit_cache_github_data`` is included.  For example, to
+this process, we provide the ``pypeit_cache_github_data`` script.  For example, to
 download the needed files for the ``keck_deimos`` spectrograph, you would execute:
 
 .. code-block:: console
 
     $ pypeit_cache_github_data keck_deimos
 
-Once cached, the data will be accessed by PypeIt without requiring an internet
-connection.  This script will also download Atmospheric Model Grids specified in the
-instrument-wide configuration, but may not catch configuration-specific ``telgridfile``
-parameter specifications.  Before trying to run PypeIt offline, verify that any
-necessary Atmospheric Model Grids are installed; if not, install them using the
-instructions below.
+(Alternatively, you can get all of the cached files hosted on GitHub by
+performing a developer installation, if you prefer).  Once cached, the data will
+be accessed by PypeIt without requiring an internet connection.  By default,
+this script also downloads any files it finds that are *not* specific to a given
+spectrograph.  (Unlike previous versions) This script does *not* download any
+files hosted in ``s3_cloud`` (see the table :ref:`above<data_dir>`); instead,
+use the scripts below.
 
+.. note::
+
+    Beware of rate limits imposed by GitHub.  If you run into this, try setting
+    up an access token and export it as the ``GITHUB_TOKEN`` environmental
+    variable; see
+    `here <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>`__.
 
 .. _install_atmosphere:
 
 Atmospheric Model Grids
 -----------------------
 
-Calculation of the sensitivity functions for IR instruments and general fitting
-of telluric absorption uses a grid of model atmosphere spectra.  These model
-grids range in size from 3.5-7.7 GB.  Each file provides model spectra for
+Calculation of the sensitivity functions and general fitting of telluric
+absorption uses a grid of model atmosphere spectra.  Files with these
+pre-computed model grids are large (few GB).  Recent updates allow for the use
+of a PCA decomposition of these models to provided smaller (few MB) reference
+files and faster performance; however, both methods are still functional.
+
+For the larger, atmospheric-grid files, note that we provide model spectra for
 atmospheric conditions specific to an observatory; however, a model grid is not
-provided for all observatories with spectrographs supported by PypeIt.  If
-you do not find models for your observatory, you can use the Maunakea model as
-an approximation. It includes a large grid of different parameters and should be
+provided for all observatories with spectrographs supported by PypeIt.  If you
+do not find models for your observatory, you can use the Maunakea model as an
+approximation. It includes a large grid of different parameters and should be
 good enough for most purposes.
 
-**NOTE:** Instruments that anticipate needing
-a telluric grid have its filename already included in the ``telgridfile`` `TelluricPar
-keyword <https://pypeit.readthedocs.io/en/latest/pypeit_par.html#telluricpar-keywords>`__.
-The needed model grid will download automatically when required by the code, but
-given the size of these files and your downlink speed, this may take some time.
-To install the grid independent of a reduction, run the ``pypeit_install_telluric``
-script, calling the filename of the grid required.  For example, if you needed the file
-``TelFit_MaunaKea_3100_26100_R20000.fits``, you would execute:
+.. note::
+
+    Instruments that anticipate needing a telluric grid have its filename
+    already included in the ``telgridfile`` `TelluricPar keyword
+    <https://pypeit.readthedocs.io/en/latest/pypeit_par.html#telluricpar-keywords>`__.
+    The needed model grid will download automatically when required by the code,
+    but given the size of these files and your downlink speed, this may take
+    some time.
+
+To install an atmospheric grid or PCA file independent of a reduction, use the
+``pypeit_install_telluric`` script, calling the filename of the grid required.
+For example, if you need the file ``TelFit_MaunaKea_3100_26100_R20000.fits``,
+you would execute:
 
 .. code-block:: console
 
     $ pypeit_install_telluric TelFit_MaunaKea_3100_26100_R20000.fits
 
-The downloaded file will exist in the PypeIt cache, and will persist through
-upgrades of your installation via `pip`_ or `conda`_.  To force the update of a
-telluric model grid file to the latest version, simply run ``pypeit_install_telluric``
-with the ``--force_update`` option.
+The downloaded file will exist in the PypeIt cache.  Unlike files hosted on
+``github``, these files will persist through upgrades of your installation.  To
+force the update of a telluric model grid file to the latest version, simply run
+``pypeit_install_telluric`` with the ``--force_update`` option.
 
-If you require a telluric grid that is not presently hosted in the cloud, the code will
-instruct you to download the file separately from the `PypeIt dev-suite Google Drive`_.
-Users may select any of the files in the Google Drive for their telluric correction,
-download them separately, then install them using the ``--local`` option to
-``pypeit_install_telluric``.
+If you require a telluric grid that is not presently hosted in the cloud, the
+code will instruct you to download the file separately from the `PypeIt
+dev-suite Google Drive`_.  Users may select any of the files in the Google Drive
+for their telluric correction, download them separately, then install them using
+the ``--local`` option to ``pypeit_install_telluric``.
 
+User-provided atmospheric extinction files and wavelength-calibration line lists
+--------------------------------------------------------------------------------
 
-.. _devsuite-raw-data:
+As needed to improve their data reduction, users can "install" their own
+atmospheric extinction files and/or wavelength-calibration line lists.  PypeIt
+manages these *local* files within its cache system.  To install such files, use
+the ``pypeit_install_extinctfile`` or ``pypeit_install_linelist`` script,
+respectively; see :ref:`install_scripts`, :ref:`extinct-file`, and
+:ref:`user_linelists`.
 
-Raw Data
---------
+If you find specific files are generally useful/important to your data
+reduction, we encourage you to submit a GitHub pull-request so that these files
+can be included in the PypeIt repository.
 
-Example raw data for all supported spectrographs are used in extensive testing
-of the code base during development; see :ref:`dev-suite`.  General users should
-not need access to these data; however, they may be useful for learning how to
-use PypeIt before running it on your own data from the same instrument.
-These data are stored in the ``RAW_DATA`` directory in the `PypeIt dev-suite
-Google Drive`_, divided into subdirectories for each instrument and instrument
-setup.  See also the `PypeIt Development Suite`_ GitHub repository, which
-includes a :doc:`pypeit_file` for each instrument and setup used during
-development testing.
+.. important::
 
+    Because PypeIt uses the cache system to manage the local files, it will
+    associate each file with the version of the code used to install it in the
+    cache.  Every time you upgrade your pypeit version, you should delete the
+    local files from the cache (this will not remove the local file itself) and
+    re-install them using the upgraded version of PypeIt.  See :ref:`view-cache`
+    and :ref:`upgrade`.
 
 Quick-Look Calibration Files
 ----------------------------
@@ -302,10 +442,9 @@ Quick-Look Calibration Files
 .. note::
 
     We continue to work on cleaner installation solutions for these data
-    products, particularly for the quick-look calibration files.  In the
-    meantime, note that you will likely need to re-run the data-specific
-    installation scripts described below every time you upgrade your
-    installation (via `pip`_ or `conda`_).
+    products.  In the meantime, note that you will likely need to re-run the
+    data-specific installation scripts described below every time you upgrade
+    your installation.
 
 Some of the quick-look reductions provided by PypeIt require canned calibration
 files to speed up the data-reduction process, as appropriate for a quick-look
@@ -337,6 +476,21 @@ the symlink using the ``--ql_path`` option.
     The installation script simply creates symlinks to the downloaded data.
     This means that if you move the original data, the symlinks will become
     broken **and you will need to rerun the installation script.**
+
+.. _devsuite-raw-data:
+
+Raw Data
+--------
+
+Example raw data for all supported spectrographs are used in extensive testing
+of the code base during development; see :ref:`dev-suite`.  General users should
+not need access to these data; however, they may be useful for learning how to
+use PypeIt before running it on your own data from the same instrument.
+These data are stored in the ``RAW_DATA`` directory in the `PypeIt dev-suite
+Google Drive`_, divided into subdirectories for each instrument and instrument
+setup.  See also the `PypeIt Development Suite`_ GitHub repository, which
+includes a :doc:`pypeit_file` for each instrument and setup used during
+development testing.
 
 ----
 
@@ -397,11 +551,12 @@ will work single-threaded if OpenMP is not available. GCC supports OpenMP
 out of the box, however the ``clang`` compiler that Apple's XCode provides does not. So
 for optimal performance on Apple hardware, you will want to install GCC via ``homebrew``
 or ``macports`` and specify its use when installing ``pypeit``. For example, if you installed
-GCC 12.x via ``homebrew``, you would get ``pypeit`` to use it by doing, for example:
+GCC via ``homebrew``, you would get ``pypeit`` to use it by doing, for example:
 
 .. code-block:: console
 
-    CC=gcc-12 pip install pypeit
+    $ export CC=/opt/homebrew/bin/gcc
+    $ pip install pypeit
 
 Basically, ``pypeit`` checks the ``CC`` environment variable for what compiler to use so configure
 that as needed to use your desired compiler. The ``pypeit_c_enabled`` script can be used to check if
@@ -605,4 +760,85 @@ In either case, over 100 tests should pass, nearly 100 will be skipped and none
 should fail. The skipped tests only run if the PypeIt development is installed
 and configured; see :ref:`dev-suite`.
 
+----
 
+.. _install_troubleshoot:
+
+Troubleshooting
+===============
+
+If you have trouble installing pypeit, you're encouraged to `join
+<https://join.slack.com/t/pypeit-users/shared_invite/zt-1kc4rxhsj-vKU1JnUA~8PZE~tPlu~aTg>`__
+our `PypeIt Users Slack <https://pypeit-users.slack.com>`__ and post your issue
+to the #installing channel.  Here is an incomplete list of issues that users
+have reported in the past.  In addition to posting to the Users Slack if your
+issue isn't among those listed below, *please let us know if these suggestions
+do not work for you.*
+
+**I am trying to install pypeit for the first time and it fails!**:  The root
+problem of this can be system dependent:
+
+ - First, *always* make sure you install the code into a fresh environment.
+
+ - If you're on Windows, make sure you follow the :ref:`install_windows`
+   instructions.  If you're still having trouble, it may be because PypeIt
+   includes some C code to accelerate some computations.  If the issue is
+   because the C compiler is not properly linking, you can try typing ``set
+   CC=help`` at the command prompt before running the ``pip install`` command.
+
+ - Occasionally, the installation may fail because of incompatible dependencies.
+   This may be because of recent releases of one of PypeIt's dependencies; i.e.,
+   updates to packages since the most recent PypeIt release.  Please let us know
+   if this happens, and we will try to issue a new release asap that corrects
+   the incompatibility.  In the short-term, we may ask you to install old
+   versions of packages that we know work.
+
+**I am trying to upgrade pypeit and it fails!**:  First try uninstalling your
+current pypeit version:
+
+.. code-block:: bash
+
+    pip uninstall pypeit
+
+Then reinstall it.  If that also fails, try creating a fresh environment and
+reinstalling pypeit in that new environment.
+ 
+**The installation process succeeded, but the code is faulting!**:  This could
+be for a few reasons:
+
+ - Recall that pypeit isn't necessarily backwards compatible.  If you've
+   upgraded pypeit and tried to use it with data that was reduced by a previous
+   version, the fault may because of changes between versions.  You will either
+   need to revert to your previous version or reprocess the data.
+
+ - This may be because of dependency changes.  A tell-tale signature of this is
+   if you get errors associate with missing or unknown keywords or arguments.
+   This is may be because of recent releases of one of PypeIt's dependencies; i.e.,
+   updates to packages since the most recent PypeIt release.  Please let us know
+   if this happens, and we will try to issue a new release asap that corrects
+   the incompatibility.  In the short-term, we may ask you to install old
+   versions of packages that we know work.
+
+**The installation process succeeded and the code completes without faulting,
+but the output looks wrong!**:  This could happen for any number of reasons.
+*We always welcome reports of failures!*  Either `submit an issue
+<https://github.com/pypeit/PypeIt/issues>`__ or report it on the PypeIt Users
+Slack.  However, here are a few things to note and/or try:
+
+ - Make sure you have checked your calibrations; see :ref:`calibrations`.  The
+   issue may be related to a parameter that you can change.
+
+ - If you don't see any ``spec1d`` files in your ``Science`` folder, this is
+   likely because the code didn't find any objects; see :ref:`object_finding`.
+
+ - If you've recently upgraded the code, this may be related to changes in
+   dependencies that the developers didn't catch.  PypeIt performs *a lot* of
+   testing before issuing a new release, but does not have complete test
+   coverage and performance validation.  This means silent failures are the most
+   difficult to catch.
+
+ - And, of course, the code will have bugs.  If you find one, the more
+   information you provide the developers, the easier it will be for us to track
+   down the issue.  Valuable information includes your OS, OS version, python
+   version, and pypeit version, as well as QA plots and ``ginga`` screen grabs
+   that illustrate the issue.

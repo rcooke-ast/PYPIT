@@ -60,7 +60,7 @@ def connect_to_ginga(host='localhost', port=9000, raise_err=False, allow_new=Fal
             # was just instantiated for a maximum number of iterations.
             # If the connection is remains unsuccessful, an error is
             # thrown stating that the connection timed out.
-            maxiter = int(1e6)
+            maxiter = int(3e4)
             for i in range(maxiter):
                 try:
                     viewer = grc.RemoteClient(host, port)
@@ -72,8 +72,9 @@ def connect_to_ginga(host='localhost', port=9000, raise_err=False, allow_new=Fal
                     break
             if i == maxiter-1:
                 msgs.error('Timeout waiting for ginga to start.  If window does not appear, type '
-                           '`ginga --modules=RC,SlitWavelength` on the command line.  In either case, wait for '
-                           'the ginga viewer to open and try the pypeit command again.')
+                           '`ginga --modules=RC,SlitWavelength` on the command line.  In either '
+                           'case, wait for the ginga viewer to open and try the pypeit command '
+                           'again.')
             return viewer
 
         if raise_err:
@@ -348,7 +349,7 @@ def show_slits(viewer, ch, left, right, slit_ids=None, left_ids=None, right_ids=
 
     _right = right.reshape(-1,1) if right.ndim == 1 else right
     nright = _right.shape[1]
-    
+
     nspec = _left.shape[0]
     if _right.shape[0] != nspec:
         # TODO: Any reason to remove this restriction?
@@ -485,6 +486,7 @@ def show_trace(viewer, ch, trace, trc_name=None, maskdef_extr=None, manual_extr=
     ntrace = trace.shape[1]
     _maskdef_extr = ntrace*[False] if maskdef_extr is None else maskdef_extr
     _manual_extr = ntrace*[False] if manual_extr is None else manual_extr
+    _trc_name = ntrace*[''] if trc_name is None else trc_name
 
     # Show
     if yval is None:
@@ -507,8 +509,8 @@ def show_trace(viewer, ch, trace, trc_name=None, maskdef_extr=None, manual_extr=
         # Text
         ohf = len(trace[:,i])//2
         # Do it
-        canvas_list += [dict(type='text',args=(float(y[ohf,i]), float(trace[ohf,i]), str(trc_name[i])) if rotate
-                             else (float(trace[ohf,i]), float(y[ohf,i]), str(trc_name[i])),
+        canvas_list += [dict(type='text',args=(float(y[ohf,i]), float(trace[ohf,i]), str(_trc_name[i])) if rotate
+                             else (float(trace[ohf,i]), float(y[ohf,i]), str(_trc_name[i])),
                              kwargs=dict(color=_color, fontsize=17., rot_deg=90.))]
 
     canvas.add('constructedcanvas', canvas_list)
@@ -665,3 +667,28 @@ def show_scattered_light(image_list, slits=None, wcs_match=True):
         if clear:
             clear = False
 
+
+def show_1dspec(filename, ext=0, masked=True, fluxed=False, extraction='OPT'):
+    """
+    Interface to ginga to show a 1dspec and manipulate with Spec1dView plugin.
+
+    Parameters
+    ----------
+    filename : str
+        spec1d FITS file to show in the viewer
+    ext : int
+        extension to show (which spectrum)
+    """
+    viewer = connect_to_ginga(raise_err=True, allow_new=True)
+    sh = viewer.shell()
+
+    chname, plname = "Spec1d", "Spec1dView"
+    sh.add_channel(chname)
+    ch = viewer.channel(chname)
+    # set up the options as passed
+    kwargs = dict(ext=ext, extraction=extraction, masked=masked, fluxed=fluxed)
+    sh.call_local_plugin_method(chname, plname, 'set_params', [], kwargs)
+    # start the plugin
+    sh.start_local_plugin(chname, plname)
+    # load the file
+    sh.load_file(filename, chname=chname)

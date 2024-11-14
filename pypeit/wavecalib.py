@@ -10,7 +10,7 @@ import json
 import numpy as np
 from matplotlib import pyplot as plt
 
-from linetools.utils import jsonify
+from pypeit.utils import jsonify
 from astropy.table import Table
 from astropy.io import fits
 
@@ -217,7 +217,8 @@ class WaveCalib(calibframe.CalibFrame):
         # Parse all the WAVE2DFIT extensions
         # TODO: It would be good to have the WAVE2DFIT extensions follow the
         # same naming convention as the WAVEFIT extensions...
-        wave2d_fits = [fitting.PypeItFit.from_hdu(hdu[e], chk_version=chk_version)
+        wave2d_fits = [fitting.PypeItFit() if len(hdu[e].data) == 0 
+                            else fitting.PypeItFit.from_hdu(hdu[e], chk_version=chk_version)
                             for e in ext if 'WAVE2DFIT' in e]
         if len(wave2d_fits) > 0:
             d['wv_fit2d'] = np.asarray(wave2d_fits)
@@ -281,9 +282,14 @@ class WaveCalib(calibframe.CalibFrame):
         # Generate the slit mask and slit edges - pad slitmask by 1 for edge effects
         slitmask = slits.slit_img(pad=1, initial=initial, flexure=spat_flexure)
         slits_left, slits_right, _ = slits.select_edges(initial=initial, flexure=spat_flexure)
+        # need to exclude slits that are masked (are bad)
+        bad_slits = slits.bitmask.flagged(slits.mask, and_not=slits.bitmask.exclude_for_reducing)
+        ok_spat_ids = slits.spat_id[np.logical_not(bad_slits)]
         # Build a map of the spectral FWHM
         fwhmimg = np.zeros(tilts.shape)
         for sl, spat_id in enumerate(slits.spat_id):
+            if spat_id not in ok_spat_ids:
+                continue
             this_mask = slitmask == spat_id
             spec, spat = np.where(this_mask)
             spat_loc = (spat - slits_left[spec, sl]) / (slits_right[spec, sl] - slits_left[spec, sl])
@@ -327,13 +333,11 @@ class WaveCalib(calibframe.CalibFrame):
         spec_flex /= (slits.nspec - 1)
 
         # Setup
-        #ok_slits = slits.mask == 0
-#        bpm = slits.mask.astype(bool)
-#        bpm &= np.logical_not(slits.bitmask.flagged(slits.mask, flag=slits.bitmask.exclude_for_reducing))
         bpm = slits.bitmask.flagged(slits.mask, and_not=slits.bitmask.exclude_for_reducing)
         ok_slits = np.logical_not(bpm)
         #
         image = np.zeros_like(tilts)
+        # Grab slit_img
         slitmask = slits.slit_img(flexure=spat_flexure, exclude_flag=slits.bitmask.exclude_for_reducing)
 
         # Separate detectors for the 2D solutions?
@@ -341,9 +345,7 @@ class WaveCalib(calibframe.CalibFrame):
             # Error checking
             if self.det_img is None:
                 msgs.error("This WaveCalib object was not generated with ech_separate_2d=True")
-            # Grab slit_img
-            slit_img = slits.slit_img()
-        
+
         # Unpack some 2-d fit parameters if this is echelle
         for islit in np.where(ok_slits)[0]:
             slit_spat = slits.spat_id[islit]
@@ -353,9 +355,7 @@ class WaveCalib(calibframe.CalibFrame):
             if self.par['echelle'] and self.par['ech_2dfit']:
                 # evaluate solution --
                 if self.par['ech_separate_2d']:
-                    ordr_det = slits.det_of_slit(
-                        slit_spat, self.det_img,
-                        slit_img=slit_img)
+                    ordr_det = slits.det_of_slit(slit_spat, self.det_img, slit_img=slitmask)
                     # There are ways for this to go sour..
                     #  if the seperate solutions are not aligned with the detectors
                     #  or if one reruns with a different number of detectors
@@ -525,11 +525,11 @@ class BuildWaveCalib:
         self.arccen = None  # central arc spectrum
 
         # Get the non-linear count level
-        # TODO: This is currently hacked to deal with Mosaics
-        try:
+        if self.msarc.is_mosaic:
+            # if this is a mosaic we take the maximum value among all the detectors
+            self.nonlinear_counts = np.max([rawdets.nonlinear_counts() for rawdets in self.msarc.detector.detectors])
+        else:
             self.nonlinear_counts = self.msarc.detector.nonlinear_counts()
-        except:
-            self.nonlinear_counts = 1e10
 
         # --------------------------------------------------------------
         # TODO: Build another base class that does these things for both

@@ -178,7 +178,7 @@ class Spec2DObj(datamodel.DataContainer):
             self.calibs['DIR'] = hdr['CLBS_DIR']
             for key in hdr.keys():
                 if key.startswith('CLBS_') \
-                        and (Path(self.calibs['DIR']).resolve() / hdr[key]).exists():
+                        and (Path(self.calibs['DIR']).absolute() / hdr[key]).exists():
                     self.calibs['_'.join(key.split('_')[1:])] = hdr[key]
 
         if 'PROCSTEP' in hdr:
@@ -633,7 +633,7 @@ class AllSpec2DObj:
                 combination of this and ``update_det`` may also alter this
                 object based on the existing file.
         """
-        _outfile = Path(outfile).resolve()
+        _outfile = Path(outfile).absolute()
         if _outfile.exists():
             # Clobber?
             if not overwrite:
@@ -727,4 +727,46 @@ class AllSpec2DObj:
             txt += str(det)+','
         txt += ') >'
         return txt
+
+    def flexure_diagnostics(self, flexure_type='spat'):
+        """
+        Print and return the spectral or spatial flexure of a spec2d file.
+
+        Args:
+            flexure_type (:obj:`str`, optional):
+                Type of flexure to check. Options are 'spec' or 'spat'. Default
+                is 'spec'.
+
+        Returns:
+            :obj:`dict`: Dictionary with the flexure values for each detector. If
+            flexure_type is 'spec', the spectral flexure is stored in an astropy table.
+            If flexure_type is 'spat', the spatial flexure is stored in a float.
+
+        """
+        if flexure_type not in ['spat', 'spec']:
+            msgs.error(f'flexure_type must be spat or spec, not {flexure_type}')
+        return_flex = {}
+        # Loop on Detectors
+        for det in self.detectors:
+            print('')
+            print('=' * 50 + f'{det:^7}' + '=' * 51)
+            # get and print the spectral flexure
+            if flexure_type == 'spec':
+                spec_flex = self[det].sci_spec_flexure
+                spec_flex.rename_column('sci_spec_flexure', 'global_spec_shift')
+                if np.all(spec_flex['global_spec_shift'] != None):
+                    spec_flex['global_spec_shift'].format = '0.3f'
+                # print the table
+                spec_flex.pprint_all()
+                # return the table
+                return_flex[det] = spec_flex
+            # get and print the spatial flexure
+            if flexure_type == 'spat':
+                spat_flex = self[det].sci_spat_flexure
+                # print the value
+                print(f'Spat shift: {spat_flex}')
+                # return the value
+                return_flex[det] = spat_flex
+
+        return return_flex
 

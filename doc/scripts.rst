@@ -59,6 +59,14 @@ The script usage can be displayed by calling the script with the
 
 .. include:: help/pypeit_cache_github_data.rst
 
+pypeit_clean_cache
+------------------
+
+View/Remove files from the PypeIt data cache.  The script usage can be displayed
+by calling the script with the ``-h`` option:
+
+.. include:: help/pypeit_clean_cache.rst
+
 pypeit_install_telluric
 -----------------------
 
@@ -557,6 +565,26 @@ The script usage can be displayed by calling the script with the
 ``-h`` option:
 
 .. include:: help/pypeit_chk_flats.rst
+
+.. _pypeit_show_pixflat:
+
+pypeit_show_pixflat
+-------------------
+
+Inspect in a Ginga window the (slitless) pixel flat produced by PypeIt and stored
+in the PypeIt cache (see ref:`data_installation`).  It displays each detector separately
+in different channels. The script is useful for assessing the quality of the pixel-to-pixel
+response of the detector. Typical call is:
+
+.. code-block:: console
+
+        pypeit_show_pixflat PYPEIT_LRISb_pixflat_B600_2x2_17sep2009_specflip.fits.gz
+
+
+The script usage can be displayed by calling the script with the
+``-h`` option:
+
+.. include:: help/pypeit_show_pixflat.rst
 
 pypeit_show_2dspec
 ------------------
