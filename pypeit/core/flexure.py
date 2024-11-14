@@ -47,7 +47,7 @@ from pypeit import wavemodel
 from IPython import embed
 
 
-def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=False, qa_outfile=None):
+def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=False, qa_outfile=None, qa_vrange=None):
     """
     Calculate a rigid flexure shift in the spatial dimension
     between the slitmask and the science image.
@@ -73,6 +73,9 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
             Run in debug mode
         qa_outfile (:obj:`str`, optional):
             Path to the output file where the QA is saved.  If None, the QA is not generated.
+        qa_vrange (:obj:`tuple`, optional):
+            Tuple with the vmin and vmax values for the imshow plot in the QA. If None, the
+            vmin and vmax values are calculated from the data.
 
     Returns:
         float:  The spatial flexure shift relative to the initial slits
@@ -136,12 +139,12 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
         plt.show()
 
         # 2D plot
-        spat_flexure_qa(sciimg, slits, shift, gpm=np.logical_not(bpm))
+        spat_flexure_qa(sciimg, slits, shift, gpm=np.logical_not(bpm), vrange=qa_vrange)
 
     if qa_outfile is not None:
         # Generate the QA plot
         msgs.info("Generating QA plot for spatial flexure")
-        spat_flexure_qa(sciimg, slits, shift, gpm=np.logical_not(bpm), outfile=qa_outfile)
+        spat_flexure_qa(sciimg, slits, shift, gpm=np.logical_not(bpm), vrange=qa_vrange, outfile=qa_outfile)
 
     return shift
 

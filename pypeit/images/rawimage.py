@@ -800,7 +800,8 @@ class RawImage:
         self.spat_flexure_shift = flexure.spat_flexure_shift(self.image[0], slits, bpm=self._bpm[0],
                                                              maxlag=self.par['spat_flexure_maxlag'],
                                                              sigdetect=self.par['spat_flexure_sigdetect'],
-                                                             debug=debug, qa_outfile=qa_outfile)
+                                                             debug=debug, qa_outfile=qa_outfile,
+                                                             qa_vrange=self.par['spat_flexure_vrange'])
         self.steps[step] = True
         # Return
         return self.spat_flexure_shift
