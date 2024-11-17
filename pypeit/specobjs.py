@@ -113,7 +113,7 @@ class SpecObjs:
                 # from_hdu method, and the name of the HDU must have a known format
                 # (e.g., 'DET01-DETECTOR').
                 _det = hdu.name.split('-')[0]
-                detector_hdus[_det] = dmodcls.from_hdu(hdu)
+                detector_hdus[_det] = dmodcls.from_hdu(hdu, chk_version=chk_version)
 
             # Now the objects
             for hdu in hdul[1:]:
@@ -811,7 +811,15 @@ class SpecObjs:
                     for line in str(subheader[key.upper()]).split('\n'):
                         header[key.upper()] = line
             else:
-                header[key.upper()] = subheader[key]
+                # Find the value and check if it is masked
+                if isinstance(subheader[key], (tuple, list)):
+                    # value + comment
+                    _value = ('', subheader[key][1]) if np.ma.is_masked(subheader[key][0]) else subheader[key]
+                else:
+                    # value only
+                    _value = '' if np.ma.is_masked(subheader[key]) else subheader[key]
+                # Update the header card with the corresponding value
+                header[key.upper()] = _value
                 # Also store the datetime in ISOT format
                 if key.upper() == 'MJD':
                     if isinstance(subheader[key], (list, tuple)):

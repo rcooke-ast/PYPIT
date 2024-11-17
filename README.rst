@@ -11,9 +11,6 @@
 .. |CITests| image:: https://github.com/pypeit/PypeIt/workflows/CI%20Tests/badge.svg
     :target: https://github.com/pypeit/PypeIt/actions?query=workflow%3A"CI+Tests"
 
-.. |Coverage| image:: https://codecov.io/gh/PypeIt/pypeit/branch/release/graph/badge.svg
-    :target: https://codecov.io/gh/PypeIt/pypeit
-
 .. |docs| image:: https://readthedocs.org/projects/pypeit/badge/?version=latest
     :target: https://pypeit.readthedocs.io/en/latest/
 
@@ -49,7 +46,7 @@ PypeIt |forks| |stars|
 
 |github| |pypi| |pypi_downloads| |License|
 
-|docs| |CITests| |Coverage| 
+|docs| |CITests|
 
 |DOI_latest| |JOSS| |arxiv|
 
