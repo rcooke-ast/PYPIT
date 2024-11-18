@@ -21,7 +21,6 @@ Functionality/Performance Improvements and Additions
   (used to compute the flexure) and the stretching of the image in the QA plot,
   respectively.
 
-
 Instrument-specific Updates
 ---------------------------
 
@@ -44,12 +43,4 @@ Under-the-hood Improvements
 
 Bug Fixes
 ---------
-
-
-
-
-
-
-
-
 
