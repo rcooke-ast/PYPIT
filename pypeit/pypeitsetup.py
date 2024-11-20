@@ -119,7 +119,7 @@ class PypeItSetup:
         # Cannot proceed without spectrograph name
         if _spectrograph_name is None:
             msgs.error('Must provide spectrograph name directly or using configuration lines.')
-       
+
         # Instantiate the spectrograph
         self.spectrograph = load_spectrograph(_spectrograph_name)
 
@@ -133,7 +133,7 @@ class PypeItSetup:
 
         # Instantiate the pypeit parameters.  The user input
         # configuration (cfg_lines) can be None.
-        self.par = PypeItPar.from_cfg_lines(cfg_lines=spectrograph_cfg_lines, 
+        self.par = PypeItPar.from_cfg_lines(cfg_lines=spectrograph_cfg_lines,
                                             merge_with=(cfg_lines,))
 
         # Prepare internals for execution
@@ -156,11 +156,11 @@ class PypeItSetup:
         # Load up a pypeItFile object
         pypeItFile = inputfiles.PypeItFile.from_file(filename)
         # Instantiate
-        return cls(pypeItFile.filenames, 
-                   frametype=pypeItFile.frametypes, 
-                   usrdata=pypeItFile.data, 
+        return cls(pypeItFile.filenames,
+                   frametype=pypeItFile.frametypes,
+                   usrdata=pypeItFile.data,
                    setups=[pypeItFile.setup_name],
-                   cfg_lines=pypeItFile.cfg_lines, 
+                   cfg_lines=pypeItFile.cfg_lines,
                    pypeit_file=filename)
 
     @classmethod
@@ -256,7 +256,7 @@ class PypeItSetup:
             :class:`~pypeit.metadata.PypeItMetaData` object.
         """
         # Build and sort the table
-        self.fitstbl = PypeItMetaData(self.spectrograph, par=self.par, 
+        self.fitstbl = PypeItMetaData(self.spectrograph, par=self.par,
                                       files=self.file_list,
                                       usrdata=self.usrdata, strict=strict)
         # Sort by the time
@@ -389,7 +389,7 @@ class PypeItSetup:
         # Remove 'em
         self.fitstbl.remove_rows(rows, regroup=regroup)
         # Remove the files from the file list
-        self.file_list = [f for f in self.file_list 
+        self.file_list = [f for f in self.file_list
                             if Path(f).absolute().name in self.fitstbl['filename']]
         # Remove the files from the frametype
         if self.frametype is not None:
@@ -397,12 +397,12 @@ class PypeItSetup:
                                 if Path(k).absolute().name in self.fitstbl['filename']}
         # Remove the files from the user data
         if self.usrdata is not None:
-            keep = [i for i in range(len(self.usrdata)) 
+            keep = [i for i in range(len(self.usrdata))
                         if self.usrdata['filename'][i] in self.fitstbl['filename']]
             self.usrdata = self.usrdata[keep]
 
-    def generate_ql_calib_pypeit_files(self, output_path:str, 
-                                       det:str=None, 
+    def generate_ql_calib_pypeit_files(self, output_path:str,
+                                       det:str=None,
                                        configs:str='all',
                                        bkg_redux:bool=False,
                                        overwrite:bool=False):
@@ -457,9 +457,9 @@ class PypeItSetup:
         # Write the PypeIt files
         # TODO: Exclude science/standard files from file?
         pypeit_files = self.fitstbl.write_pypeit(
-            output_path=output_path, 
-            cfg_lines=self.user_cfg, 
-            write_bkg_pairs=bkg_redux, 
+            output_path=output_path,
+            cfg_lines=self.user_cfg,
+            write_bkg_pairs=bkg_redux,
             configs=configs)
 
         # Rename name the pypeit files so that they're specific to the
