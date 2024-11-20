@@ -198,16 +198,17 @@ class CombineImage:
             comb_texp = exptime[0]
 
         # Check that all spatial flexure values are consistent
-        comb_spat_flex = 0.
-        # remove None values
-        no_none = spat_flex != None
-        if np.sum(no_none) > 0:
-            if np.any(np.absolute(np.diff(spat_flex[no_none])) > 0.1):
+        comb_spat_flex = None
+        # remove nan (None) values. Since spat_flex is a float array,
+        # if rawImage.spat_flexure is None, it will be converted to nan
+        no_nan = np.logical_not(np.isnan(spat_flex))
+        if np.sum(no_nan) > 0:
+            if np.any(np.absolute(np.diff(spat_flex[no_nan])) > 0.1):
                 msgs.warn(f'Spatial flexure is not consistent for all images being combined: {spat_flex}.')
-                comb_spat_flex = np.round(np.mean(spat_flex[no_none]),3)
+                comb_spat_flex = np.round(np.mean(spat_flex[no_nan]),3)
                 msgs.warn(f'Using the average: {comb_spat_flex}.')
             else:
-                comb_spat_flex = spat_flex[no_none][0]
+                comb_spat_flex = spat_flex[no_nan][0]
 
         # scale the images to their mean, if requested, before combining
         if self.par['scale_to_mean']:
