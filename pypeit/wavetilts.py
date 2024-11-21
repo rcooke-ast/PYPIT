@@ -820,6 +820,13 @@ class BuildWaveTilts:
                                        self.spat_order[slit_idx], self.spec_order[slit_idx],
                                        slit_idx,
                                        doqa=doqa, show_QA=show)
+            # Flag slits with high number of rejected pixels (>95%)
+            # TODO: Is 95% the right threshold?
+            _gpm = self.all_fit_dict[slit_idx]['pypeitFit'].bool_gpm
+            if np.sum(np.logical_not(_gpm)) > 0.95 * _gpm.size:
+                msgs.warn(f'Large number of pixels rejected in the fit. This slit/order will not be reduced!')
+                self.slits.mask[slit_idx] = self.slits.bitmask.turn_on(self.slits.mask[slit_idx], 'BADTILTCALIB')
+                continue
             self.coeffs[:self.spec_order[slit_idx]+1,:self.spat_order[slit_idx]+1,slit_idx] = coeff_out
 
             # TODO: Need a way to assess the success of fit_tilts and
@@ -828,11 +835,19 @@ class BuildWaveTilts:
             # Tilts are created with the size of the original slitmask,
             # which corresonds to the same binning as the science
             # images, trace images, and pixelflats etc.
-            thismask_science = self.slitmask_science == slit_spat
             _spec_eval, _spat_eval = tracewave.fit2tilts_prepareSlit(slits_left[:, slit_idx], slits_right[:, slit_idx],
                                                                      thismask_science, self.spat_flexure[slit_idx, :])
-            self.final_tilts[thismask_science] = tracewave.fit2tilts(coeff_out, self.par['func2d'],
-                                                                     spec_eval=_spec_eval, spat_eval=_spat_eval)
+            self.tilts = tracewave.fit2tilts(coeff_out, self.par['func2d'],
+                                             spec_eval=_spec_eval, spat_eval=_spat_eval)
+            # Check that the tilts image has values that span a reasonable range
+            # TODO: Is this the right threshold?
+            if np.nanmax(self.tilts) - np.nanmin(self.tilts) < 0.8:
+                msgs.warn('Tilts image fit not good. This slit/order will not be reduced!')
+                self.slits.mask[slit_idx] = self.slits.bitmask.turn_on(self.slits.mask[slit_idx], 'BADTILTCALIB')
+                continue
+            # Save to final image
+            thismask_science = self.slitmask_science == slit_spat
+            self.final_tilts[thismask_science] = self.tilts[thismask_science]
 
         if show:
             viewer, ch = display.show_image(self.mstilt.image * (self.slitmask > -1), chname='tilts')

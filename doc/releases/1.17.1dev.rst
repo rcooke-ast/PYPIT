@@ -11,15 +11,18 @@ Dependency Changes
 ------------------
 
 
-
 Functionality/Performance Improvements and Additions
 ----------------------------------------------------
 
+- The WCS for datacubes now adopts the convention of North
+  is up and East is left. In previous version of PypeIt,
+  East was right.
 - The spatial flexure can now take a constant value for every slit, independent values for each slit,
   or independent values for each slit edge.
 
 Instrument-specific Updates
 ---------------------------
+
 
 Script Changes
 --------------
@@ -32,9 +35,10 @@ Datamodel Changes
 Under-the-hood Improvements
 ---------------------------
 
+
 Bug Fixes
 ---------
 
-- None
-
+- Fix the WCS for the datacube generation. There was an offset
+  in both spatial dimensions equal to half the field of view.
 

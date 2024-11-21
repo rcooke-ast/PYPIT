@@ -979,7 +979,7 @@ def create_wcs(raImg, decImg, waveImg, slitid_img_gpm, dspat, dwave,
 
     # Generate a master WCS to register all frames
     coord_min = [_ra_min, _dec_min, _wave_min]
-    coord_dlt = [dspat, dspat, dwave]
+    coord_dlt = [-dspat, dspat, dwave]
 
     # If a reference image is being used and a white light image is requested (collapse=True) update the celestial parts
     reference_image = None
@@ -991,7 +991,7 @@ def create_wcs(raImg, decImg, waveImg, slitid_img_gpm, dspat, dwave,
         coord_dlt[:2] = imgwcs.wcs.cdelt
         numra, numdec = reference_image.shape
 
-    cubewcs = generate_WCS(coord_min, coord_dlt, equinox=equinox, name=specname)
+    cubewcs = generate_WCS(coord_min, coord_dlt, numra, equinox=equinox, name=specname)
     msgs.info(msgs.newline() + "-" * 40 +
               msgs.newline() + "Parameters of the WCS:" +
               msgs.newline() + "RA   min = {0:f}".format(coord_min[0]) +
@@ -1009,7 +1009,7 @@ def create_wcs(raImg, decImg, waveImg, slitid_img_gpm, dspat, dwave,
     return cubewcs, voxedges, reference_image
 
 
-def generate_WCS(crval, cdelt, equinox=2000.0, name="PYP_SPEC"):
+def generate_WCS(crval, cdelt, numra, equinox=2000.0, name="PYP_SPEC"):
     """
     Generate a WCS that will cover all input spec2D files
 
@@ -1020,6 +1020,10 @@ def generate_WCS(crval, cdelt, equinox=2000.0, name="PYP_SPEC"):
         cdelt (list):
             3 element list containing the delta values of the [RA,
             DEC, WAVELENGTH]
+        numra (int):
+            Number of RA values in the WCS. This is used to ensure
+            that the convention of the WCS is so that North is up
+            and East is to the left.
         equinox (float, optional):
             Equinox of the WCS
 
@@ -1037,7 +1041,7 @@ def generate_WCS(crval, cdelt, equinox=2000.0, name="PYP_SPEC"):
     w.wcs.cunit = [units.degree, units.degree, units.Angstrom]
     w.wcs.ctype = ["RA---TAN", "DEC--TAN", "WAVE"]
     w.wcs.crval = crval  # RA, DEC, and wavelength zeropoints
-    w.wcs.crpix = [0, 0, 0]  # RA, DEC, and wavelength reference pixels
+    w.wcs.crpix = [numra, 0, 0]  # RA, DEC, and wavelength reference pixels
     #w.wcs.cd = np.array([[cdval[0], 0.0, 0.0], [0.0, cdval[1], 0.0], [0.0, 0.0, cdval[2]]])
     w.wcs.cdelt = cdelt
     w.wcs.lonpole = 180.0  # Native longitude of the Celestial pole
@@ -1309,17 +1313,19 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     #idx_max = np.unravel_index(np.argmax(whitelight_img), whitelight_img.shape)
     msgs.info("Highest S/N object located at spaxel (x, y) = {0:d}, {1:d}".format(idx_max[0], idx_max[1]))
 
-    # Generate a 2D WCS to register all frames
-    coord_min = [_ra_min, _dec_min, _wave_min]
-    coord_dlt = [dspat, dspat, dwv]
-    whitelightWCS = generate_WCS(coord_min, coord_dlt)
-    wcs_scale = (1.0 * whitelightWCS.spectral.wcs.cunit[0]).to(units.Angstrom).value  # Ensures the WCS is in Angstroms
     # Make the bin edges to be at +/- 1 pixels around the maximum (i.e. summing 9 pixels total)
     numwav = int((_wave_max - _wave_min) / dwv)
     xbins = np.array([idx_max[0]-1, idx_max[0]+2]) - 0.5
     ybins = np.array([idx_max[1]-1, idx_max[1]+2]) - 0.5
     spec_bins = np.arange(1 + numwav) - 0.5
     bins = (xbins, ybins, spec_bins)
+
+    # Generate a 2D WCS to register all frames
+    numra = xbins.size - 1
+    coord_min = [_ra_min, _dec_min, _wave_min]
+    coord_dlt = [-dspat, dspat, dwv]
+    whitelightWCS = generate_WCS(coord_min, coord_dlt, numra)
+    wcs_scale = (1.0 * whitelightWCS.spectral.wcs.cunit[0]).to(units.Angstrom).value  # Ensures the WCS is in Angstroms
 
     # Extract the spectrum of the highest S/N object
     flux_stack = np.zeros((numwav, numframes))
