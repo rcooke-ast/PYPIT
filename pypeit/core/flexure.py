@@ -110,7 +110,7 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
         msgs.warn('No peak detected in the collapsed sobel images. Assuming there is NO SPATIAL FLEXURE.'
                   + msgs.newline() + 'If a flexure is expected, consider either changing the '
                                      '"spat_flexure_sigdetect" parameter, or use the manual flexure correction.')
-
+        return 0.
     # run x-cross correlation
     lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
     xcorr_denom = np.sqrt(np.sum(corr_sci*corr_sci)*np.sum(corr_slits*corr_slits))
