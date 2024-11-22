@@ -94,10 +94,10 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     slits_sobel, _ = trace.detect_slit_edges(slitmask, bpm=bpm)
     # collapse both sobel images along the spectral direction
     sci_smash, _, _ = sigma_clipped_stats(sci_sobel, axis=0, mask=bpm)
-    slits_smash, _, _ = sigma_clipped_stats(slits_sobel, axis=0, mask=bpm)
+    # no need for sigma clipping for the slitmask
+    slits_smash = np.mean(slits_sobel, axis=0)
     # remove nan values
     sci_smash[np.isnan(sci_smash)] = 0
-    slits_smash[np.isnan(slits_smash)] = 0
     # invert the negative values
     sci_smash[sci_smash < 0] *= -1
     slits_smash[slits_smash < 0] *= -1
@@ -105,6 +105,11 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
     corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=10., sigdetect=sigdetect, debug=debug)
     corr_slits = wvutils.get_xcorr_arc(slits_smash, cont_sub=False, percent_ceil=None, input_thresh=1., debug=debug)
+
+    if np.all(corr_sci == 0) or np.all(corr_slits == 0):
+        msgs.warn('No peak detected in the collapsed sobel images. Assuming there is NO SPATIAL FLEXURE.'
+                  + msgs.newline() + 'If a flexure is expected, consider either changing the '
+                                     '"spat_flexure_sigdetect" parameter, or use the manual flexure correction.')
 
     # run x-cross correlation
     lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
@@ -171,6 +176,12 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, outfile=None):
 
     """
     debug = True if outfile is None else False
+
+    # check that vrange is a tuple
+    if vrange is not None and not isinstance(vrange, tuple):
+        msgs.warn('vrange must be a tuple with the min and max values for the imshow plot. Ignoring vrange.')
+        vrange = None
+
     # TODO: should we use initial or tweaked slits in this plot?
     left_slits, right_slits, mask_slits = slits.select_edges(initial=True, flexure=None)
     left_flex, right_flex, mask = slits.select_edges(initial=True, flexure=shift)

@@ -513,7 +513,7 @@ def get_xcorr_arc(inspec1, sigdetect=5.0, input_thresh=None, sig_ceil=10.0, perc
     ampl_clip = np.clip(ampl, None, ceil_upper)
     if ampl_clip.size == 0:
         msgs.warn('No lines were detected in the arc spectrum. Cannot create a synthetic arc spectrum for cross-correlation.')
-        return None
+        return np.zeros_like(inspec1)
 
     # Make a fake arc by plopping down Gaussians at the location of every centroided line we found
     xcorr_arc = np.zeros_like(inspec1)
@@ -756,7 +756,7 @@ def xcorr_shift_stretch(inspec1, inspec2, cc_thresh=-1.0, percent_ceil=50.0, use
     y2 = get_xcorr_arc(inspec2, percent_ceil=percent_ceil, use_raw_arc=use_raw_arc, sigdetect=sigdetect,
                        sig_ceil=sig_ceil, fwhm=fwhm)
 
-    if y1 is None or y2 is None:
+    if np.all(y1 == 0) or np.all(y2 == 0):
         msgs.warn('No lines detected punting on shift/stretch')
         return 0, None, None, None, None, None, None
 
