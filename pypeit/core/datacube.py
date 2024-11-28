@@ -1320,8 +1320,12 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     spec_bins = np.arange(1 + numwav) - 0.5
     bins = (xbins, ybins, spec_bins)
 
+    # Grab cos(dec) for convenience. Use the average of the min and max dec.
+    cosdec = np.cos(0.5 * (_dec_min + _dec_max) * np.pi / 180.0)
+    # Number of spaxels in the RA direction
+    numra = int((_ra_max - _ra_min) * cosdec / dspat)
+
     # Generate a 2D WCS to register all frames
-    numra = xbins.size - 1
     coord_min = [_ra_min, _dec_min, _wave_min]
     coord_dlt = [-dspat, dspat, dwv]
     whitelightWCS = generate_WCS(coord_min, coord_dlt, numra)
@@ -1357,7 +1361,7 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                                        sn_smooth_npix=sn_smooth_npix, weight_method=weight_method)
 
     # Because we pass back a weights array, we need to interpolate to assign each detector pixel a weight
-    all_wghts = [np.ones(_sciImg[0].shape) for _ in range(numframes)]
+    all_wghts = numframes*[np.ones(_sciImg[0].shape)]
     for ff in range(numframes):
         ww = (slitidImg[ff] > 0)
         all_wghts[ff][ww] = interp1d(wave_spec, weights[ff], kind='cubic',
