@@ -113,7 +113,7 @@ class SpecObjs:
                 # from_hdu method, and the name of the HDU must have a known format
                 # (e.g., 'DET01-DETECTOR').
                 _det = hdu.name.split('-')[0]
-                detector_hdus[_det] = dmodcls.from_hdu(hdu)
+                detector_hdus[_det] = dmodcls.from_hdu(hdu, chk_version=chk_version)
 
             # Now the objects
             for hdu in hdul[1:]:
@@ -237,8 +237,8 @@ class SpecObjs:
 
         # Check for missing data
         none_flux = [f is None for f in getattr(self, flux_key)]
+        other = 'OPT' if extract_type == 'BOX' else 'BOX'
         if np.any(none_flux):
-            other = 'OPT' if extract_type == 'BOX' else 'BOX'
             msg = f"{extract_type} extracted flux is not available for all slits/orders. " \
                   f"Consider trying the {other} extraction."
             if not remove_missing:
@@ -249,6 +249,12 @@ class SpecObjs:
                 # Remove missing data
                 r_indx = np.where(none_flux)[0]
                 self.remove_sobj(r_indx)
+        # check for missing blaze
+        if extract_blaze:
+            none_blaze = [f is None for f in getattr(self, blaze_key)]
+            if np.any(none_blaze):
+                msgs.error(f"{extract_type} extracted blaze is not available for all slits/orders. "
+                           f"Consider trying the {other} extraction, or NOT using the flat.")
 
         #
         norddet = self.nobj
@@ -299,7 +305,7 @@ class SpecObjs:
         # Return
         if self[0].PYPELINE in ['MultiSlit', 'SlicerIFU'] and self.nobj == 1:
             meta_spec['ECH_ORDERS'] = None
-            blaze_ret = blaze_function.reshape(nspec) if extract_blaze else None
+            blaze_ret = blaze_function.reshape(nspec) if blaze_function is not None else None
             return wave.reshape(nspec), flux.reshape(nspec), flux_ivar.reshape(nspec), \
                    flux_gpm.reshape(nspec), blaze_ret, meta_spec, self.header
         else:
@@ -1056,6 +1062,29 @@ class SpecObjs:
             groups.append(group)
 
         return groups
+
+    def flexure_diagnostics(self):
+        """
+        Print and return the spectral flexure of a spec1d file.
+
+        Returns:
+            :obj:`astropy.table.Table`: Table with the spectral flexure.
+        """    
+        spec_flex = Table()
+        spec_flex['NAME'] = self.NAME
+        spec_flex['global_spec_shift'] = self.FLEX_SHIFT_GLOBAL
+        if np.all(spec_flex['global_spec_shift'] != None):
+            spec_flex['global_spec_shift'].format = '0.3f'
+        spec_flex['local_spec_shift'] = self.FLEX_SHIFT_LOCAL
+        if np.all(spec_flex['local_spec_shift'] != None):
+            spec_flex['local_spec_shift'].format = '0.3f'
+        spec_flex['total_spec_shift'] = self.FLEX_SHIFT_TOTAL
+        if np.all(spec_flex['total_spec_shift'] != None):
+            spec_flex['total_spec_shift'].format = '0.3f'
+        # print the table
+        spec_flex.pprint_all()
+        # return the table
+        return spec_flex
 
 
 #TODO Should this be a classmethod on specobjs??
