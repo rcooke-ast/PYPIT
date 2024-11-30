@@ -144,6 +144,7 @@ class ShaneHamspecSpectrograph(spectrograph.Spectrograph):
         self.meta['target'] = dict(ext=0, card='OBJECT')
         self.meta['decker'] = dict(ext=0, card='PLATENAM')  # Aperture plate
         #self.meta['echangle'] = dict(ext=0, card='ECHANGL', rtol=1e-3, atol=1e-2)
+        self.meta['echangle'] = dict(ext=0, card=None, default=0.)
         self.meta['xdangle'] = dict(ext=0, card='GTILTRAW', rtol=1e-2)
 
         self.meta['binning'] = dict(ext=0, card=None, default='1,1')
@@ -368,8 +369,8 @@ class ShaneHamspecSpectrograph(spectrograph.Spectrograph):
         Returns:
             list: List of files
         """
-        angle_fits_file = 'keck_hires_angle_fits.fits'
-        composite_arc_file = 'keck_hires_composite_arc.fits'
+        angle_fits_file = 'lick_hamspec_angle_fits.fits'
+        composite_arc_file = 'lick_hamspec_composite_arc.fits'
 
         return [angle_fits_file, composite_arc_file]
         
