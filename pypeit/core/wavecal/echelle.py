@@ -94,8 +94,9 @@ def predict_ech_wave_soln(angle_fits_params, ech_angle_coeffs, ech_angle, order_
                 ech_angle_coeffs[indx, ic, :], angle_fits_params['ech_func'],
                 ech_angle, minx=angle_fits_params['ech_xmin'], maxx=angle_fits_params['ech_xmax'])
 
+        # Evaluate
         wave_soln_guess[:, iord] = fitting.evaluate_fit(coeff_predict, angle_fits_params['wave_func'], xnspec,
-        minx=angle_fits_params['wave_xmin'], maxx=angle_fits_params['wave_xmax'])
+            minx=angle_fits_params['wave_xmin'], maxx=angle_fits_params['wave_xmax'])
 
     return wave_soln_guess
 
@@ -157,6 +158,7 @@ def predict_ech_arcspec(angle_fits_file, composite_arc_file, echangle, xdangle, 
     order_min, order_max = angle_fits_params['order_min'], angle_fits_params['order_max']
 
     arcspec_guess = np.zeros_like(wave_soln_guess)
+    #embed(header='predict_ech_arcspec 161 of echelle.py')
     # Interpolate the composite arc spectrum onto the predicted wavelength solution
     for iord, order in enumerate(order_vec_guess):
         indx = order - order_min
@@ -242,6 +244,7 @@ def identify_ech_orders(arcspec, echangle, xdangle, dispname,
     arccen_pad[:nspec, :norders] = arcspec
     # Cross correlate the data with the predicted arc spectrum
     # TODO Does it make sense for xcorr_shift to continuum subtract here?
+    embed(header='identify_ech_orders 247 of echelle.py')
     shift_cc, corr_cc = wvutils.xcorr_shift(
         arccen_pad.flatten('F'), arcspec_guess_pad.flatten('F'), 
         percent_ceil=cc_percent_ceil, sigdetect=5.0, sig_ceil=10.0, fwhm=4.0, debug=debug)

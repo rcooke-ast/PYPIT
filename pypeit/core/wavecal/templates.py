@@ -467,7 +467,7 @@ def read_reid(reid_file:str):
     return tbl['wave'].data, tbl['flux'].data
 
 def xidl_esihires(xidl_file, specbin=1, order_vec=None,
-                  log10=True):
+                  log10=True, ret_NORD:bool=False):
     """
     Read an XIDL format solution for Keck/HIRES
     or Keck/ESI
@@ -477,6 +477,8 @@ def xidl_esihires(xidl_file, specbin=1, order_vec=None,
     Args:
         xidl_file (str):
             Keck/HIRES save file
+        ret_NORD (bool, optional):
+            Return the NORD value for each order, if True
 
     Returns:
         tuple: np.ndarray, np.ndarray, np.ndarray  of orders, wavelength, flux
@@ -491,6 +493,7 @@ def xidl_esihires(xidl_file, specbin=1, order_vec=None,
     # Wavelengths
     wave = np.zeros((norders, specbin*nspec))
     spec = np.zeros((norders, specbin*nspec))
+    NORDs = np.zeros(norders, dtype=int)
 
     calib = xidl_dict['all_arcfit']
     order_mask = np.ones(norders, dtype=bool)
@@ -502,10 +505,12 @@ def xidl_esihires(xidl_file, specbin=1, order_vec=None,
             log10_wv_air = cheby_val(calib['FFIT'][kk], 
                                np.arange(nspec),
                         calib['NRM'][kk], calib['NORD'][kk])
+            NORDs[kk] = calib['NORD'][kk] 
         elif calib['FUNC'][kk] == b'POLY':
             log10_wv_air = poly_val(calib['FFIT'][kk], 
                               np.arange(nspec),
                               calib['NRM'][kk])
+            NORDs[kk] = calib['NORD'][kk] 
         else:
             order_mask[kk]=False
             continue
@@ -526,8 +531,10 @@ def xidl_esihires(xidl_file, specbin=1, order_vec=None,
             wave[kk,:] = wv_vac
             spec[kk,:] = ispec
     # Return
-
-    return order_vec[order_mask], wave[order_mask,:], spec[order_mask,:]
+    if ret_NORD:
+        return order_vec[order_mask], wave[order_mask,:], spec[order_mask,:], NORDs[order_mask]
+    else:
+        return order_vec[order_mask], wave[order_mask,:], spec[order_mask,:]
 
 
 def main(flg):

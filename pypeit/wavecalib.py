@@ -4,6 +4,8 @@ Module for guiding 1D Wavelength Calibration
 .. include:: ../include/links.rst
 
 """
+from importlib import reload
+
 import inspect
 import json
 
@@ -630,17 +632,26 @@ class BuildWaveCalib:
 
         # Generate a map of the instrumental spectral FWHM
         # TODO nsample should be a parameter
+        
+        # TODO PUT THIS BACK
+        '''
         fwhm_map = autoid.map_fwhm(self.msarc.image, self.gpm, self.slits_left, self.slits_right, self.slitmask,
                                    nsample=10, slit_bpm=self.wvc_bpm, specord=self.par['fwhm_spec_order'],
                                    spatord=self.par['fwhm_spat_order'])
+
+        '''
         # Calculate the typical spectral FWHM down the centre of the slit
         measured_fwhms = np.zeros(arccen.shape[1], dtype=object)
+
+        # TODO -- Put this back
+        '''
         for islit in range(arccen.shape[1]):
             if islit not in ok_mask_idx:
                 continue
             # Measure the spectral FWHM (in pixels) at the midpoint of the slit
             # (i.e. the midpoint in both the spectral and spatial directions)
             measured_fwhms[islit] = fwhm_map[islit].eval(self.msarc.image.shape[0]//2, 0.5)
+        '''
 
         # Save for redo's
         self.measured_fwhms = measured_fwhms
@@ -703,8 +714,18 @@ class BuildWaveCalib:
             # Echelle calibration files
             angle_fits_file, composite_arc_file = self.spectrograph.get_echelle_angle_files()
 
+            # TODO - remove these lines
+            if False:
+                from matplotlib import pyplot as plt    
+                plt.clf()
+                ax = plt.gca()
+                ax.plot(arccen[:, 0])
+                plt.show()
+            
+
             # Identify the echelle orders
             msgs.info("Finding the echelle orders")
+            embed(header='line 707 wavecalib.py')
             order_vec, wave_soln_arxiv, arcspec_arxiv = echelle.identify_ech_orders(
                     arccen, self.meta_dict['echangle'],
                     self.meta_dict['xdangle'],

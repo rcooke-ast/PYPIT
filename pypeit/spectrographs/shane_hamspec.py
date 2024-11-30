@@ -31,6 +31,8 @@ class ShaneHamspecSpectrograph(spectrograph.Spectrograph):
     camera = 'Hamspec'
     supported = True
     header_name = 'hamspec'
+    pypeline = 'Echelle'
+    ech_fixed_format = False
 
     @classmethod
     def default_pypeit_par(cls):
