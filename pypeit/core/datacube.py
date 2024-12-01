@@ -238,8 +238,8 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
 
     # Convert from counts/s/Ang/arcsec**2 to counts. The sensitivity function expects counts as input
     numxx, numyy, numwave = flxcube.shape
-    arcsecSQ = (wcscube.wcs.cdelt[0] * wcscube.wcs.cunit[0].to(units.arcsec)) * \
-               (wcscube.wcs.cdelt[1] * wcscube.wcs.cunit[1].to(units.arcsec))
+    arcsecSQ = abs((wcscube.wcs.cdelt[0] * wcscube.wcs.cunit[0].to(units.arcsec)) * \
+               (wcscube.wcs.cdelt[1] * wcscube.wcs.cunit[1].to(units.arcsec)))
     if fluxed:
         # The datacube is flux calibrated, in units of 10^-17 erg/s/cm**2/Ang/arcsec**2
         # Scale the flux and ivar cubes to be in units of erg/s/cm**2/Ang
