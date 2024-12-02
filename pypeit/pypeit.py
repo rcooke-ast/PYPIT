@@ -692,7 +692,7 @@ class PypeIt:
                                                    self.spectrograph.get_det_name(det))
         return objtype_out, calib_key, obstime, basename, binning
 
-    def calib_one(self, frames, det, steps:list=None):
+    def calib_one(self, frames, det, force_step:str=None):
         """
         Run Calibration for a single exposure/detector pair
 
@@ -702,6 +702,13 @@ class PypeIt:
                 Only used to idetify the setup and calibration group
             det (:obj:`int`):
                 Detector number (1-indexed)
+            force_step (:obj:`list`, optional):
+                Single step to run.  If None, run all the default steps.
+                If provided, any exiting calibration is ignored 
+                and the file is remade.
+                Also, the required files are reloaded if they
+                exist and the code exits if they do not.
+                
 
         Returns:
             caliBrate (:class:`pypeit.calibrations.Calibrations`)
@@ -717,12 +724,26 @@ class PypeIt:
             self.calibrations_path, qadir=self.qa_path,
             reuse_calibs=self.reuse_calibs, show=self.show, user_slits=user_slits,
             chk_version=self.par['rdx']['chk_version'])
+
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
-        if steps is not None:
-            caliBrate.steps = steps
-        # Run
-        caliBrate.run_the_steps()
+        if force_step is not None:
+            if force_step not in caliBrate.steps:
+                msgs.error(f'Force step {force_step} is not a valid calibration step.')
+            # Run through the default steps to the desired one
+            force_steps = caliBrate.steps[:caliBrate.steps.index(force_step)+1]
+            # Usually user defined
+            for step in force_steps:
+                caliBrate.success = True
+                if step == force_step:
+                    caliBrate.run_one_step(step, force_remake=True)
+                else:
+                    caliBrate.run_one_step(step, force_reload=True)
+                # Check for success
+                if not caliBrate.success:
+                    msgs.error(f'Failed to run calibration step: {step}')
+        else:
+            caliBrate.run_the_steps()
 
         return caliBrate
 

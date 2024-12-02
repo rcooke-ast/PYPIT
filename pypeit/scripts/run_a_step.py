@@ -115,11 +115,10 @@ class RunAStep(scriptbase.ScriptBase):
         row = int(row)
 
         # Calibrations?
-        if args.step in ['wv_calib']:
+        if args.step in ['arc', 'wv_calib']:
             pypeIt.reuse_calibs = False
-            steps = [args.step]
             for det in detectors:
-                pypeIt.calib_one([row], det, steps=steps)
+                pypeIt.calib_one([row], det, force_step=args.step)
         else:
             pypeIt.reuse_calibs = True
             msgs.error(f"Not ready for this step: {args.step}")

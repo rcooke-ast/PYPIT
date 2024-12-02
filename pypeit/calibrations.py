@@ -347,7 +347,7 @@ class Calibrations:
         if par is not None:
             self.par = par
 
-    def get_arc(self):
+    def get_arc(self, force_remake:bool=False, force_reload:bool=False):
         """
         Load or generate the arc calibration frame.
 
@@ -371,7 +371,10 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if cal_file.exists() and self.reuse_calibs:
+        if force_reload and not cal_file.exists():
+            self.success = False
+            return
+        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
             self.msarc = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msarc
 
@@ -393,7 +396,7 @@ class Calibrations:
         # Return it
         return self.msarc
 
-    def get_tiltimg(self):
+    def get_tiltimg(self, force_remake:bool=False, force_reload:bool=False):
         """
         Load or generate the tilt calibration frame.
 
@@ -417,6 +420,7 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
+        # TODO -- Add force_reload
         if cal_file.exists() and self.reuse_calibs:
             self.mstilt = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.mstilt
@@ -498,7 +502,7 @@ class Calibrations:
         self.alignments.to_file()
         return self.alignments
 
-    def get_bias(self):
+    def get_bias(self, force_reload:bool=False, force_remake:bool=False):
         """
         Load or generate the bias calibration frame.
 
@@ -514,15 +518,19 @@ class Calibrations:
         raw_files, cal_file, calib_key, setup, calib_id, detname \
                 = self.find_calibrations(frame['type'], frame['class'])
 
+        # If no raw files are available and no processed calibration frame
         if len(raw_files) == 0 and cal_file is None:
             msgs.warn(f'No raw {frame["type"]} frames found and unable to identify a relevant '
-                      'processed calibration frame.  Continuing...')
+                      'processed calibration frame.  Continuing without a bias...')
             self.msbias = None
             return self.msbias
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if cal_file.exists() and self.reuse_calibs:
+        if force_reload and not cal_file.exists():
+            self.success = False
+            return
+        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
             self.msbias = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msbias
 
@@ -540,7 +548,7 @@ class Calibrations:
         # Return it
         return self.msbias
 
-    def get_dark(self):
+    def get_dark(self, force_remake:bool=False, force_reload:bool=False):
         """
         Load or generate the dark calibration frame.
 
@@ -564,6 +572,7 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
+        # TODO -- Add force_reload
         if cal_file.exists() and self.reuse_calibs:
             self.msdark = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msdark
@@ -592,7 +601,7 @@ class Calibrations:
         # Return it
         return self.msdark
 
-    def get_bpm(self, frame=None):
+    def get_bpm(self, frame=None, force_remake:bool=False, force_reload:bool=False):
         """
         Load or generate the bad pixel mask.
 
@@ -936,7 +945,7 @@ class Calibrations:
 
         return self.flatimages
 
-    def get_slits(self):
+    def get_slits(self, force_remake:bool=False, force_reload:bool=False):
         """
         Load or generate the definition of the slit boundaries.
 
@@ -965,7 +974,10 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if cal_file.exists() and self.reuse_calibs:
+        if force_reload and not cal_file.exists():
+            self.success = False
+            return
+        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
             self.slits = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             self.slits.mask = self.slits.mask_init.copy()
             if self.user_slits is not None:
@@ -1050,7 +1062,7 @@ class Calibrations:
             self.slits.user_mask(detname, self.user_slits)
         return self.slits
 
-    def get_wv_calib(self):
+    def get_wv_calib(self, force_remake:bool=False, force_reload:bool=False):
         """
         Load or generate the 1D wavelength calibrations
 
@@ -1067,17 +1079,10 @@ class Calibrations:
 
         # Check for existing data
         req_objs = ['msarc', 'msbpm', 'slits']
-        chk_objs = self._chk_objs(req_objs)
-        if not chk_objs:
-            if self.try_reload_only:
-                embed(header='try agai 1073 in Calibrations')
-                # Check again
-
-            if chk_objs:
-                msgs.warn('Not enough information to load/generate the wavelength calibration. '
-                        'Skipping and may crash down the line')
-                return None
-            # Try reloading
+        if not self._chk_objs(req_objs):
+            msgs.warn('Not enough information to load/generate the wavelength calibration. '
+                    'Skipping and may crash down the line')
+            return None
 
         # Check internals
         self._chk_set(['det', 'calib_ID', 'par'])
@@ -1095,7 +1100,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and 
         # we want to reuse it, do so (or just load it):
-        if cal_file.exists() and self.reuse_calibs: 
+        if force_remake:
+            pass
+        elif force_reload and not cal_file.exists():
+            self.success = False
+            return
+        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
             # Load the file
             self.wv_calib = wavecalib.WaveCalib.from_file(cal_file, chk_version=self.chk_version)
             self.wv_calib.chk_synced(self.slits)
@@ -1107,7 +1117,7 @@ class Calibrations:
                                'calibration! Please generate a new one with a 2d fit.')
 
             # Return
-            if self.par['wavelengths']['redo_slits'] is None:
+            if (self.par['wavelengths']['redo_slits'] is None) or self.try_reload_only:
                 return self.wv_calib
 
         # Determine lamp list to use for wavecalib
@@ -1198,13 +1208,20 @@ class Calibrations:
         self.wavetilts.to_file()
         return self.wavetilts
 
+    def run_one_step(self, step, force_remake:bool=False,
+                     force_reload:bool=False):
+        getattr(self, f'get_{step}')(force_remake=force_remake,
+                                     force_reload=force_reload)
+
     def run_the_steps(self):
         """
         Run full the full recipe of calibration steps.
         """
+        if steps is None:
+            steps = self.steps
         self.success = True
-        for step in self.steps:
-            getattr(self, f'get_{step}')()
+        for step in steps:
+            self.run_one_step(step)
             if not self.success:
                 self.failed_step = f'get_{step}'
                 return
@@ -1230,16 +1247,17 @@ class Calibrations:
 
         Args:
             items (list):
+                List of required items for the calibration step
 
         Returns:
-            bool: True if all exist
+            bool: True if all exist or if all were successfully loaded, False
 
         """
         for obj in items:
             if getattr(self, obj) is None:
-                msgs.warn("You need to generate {:s} prior to this calibration..".format(obj))
                 # Strip ms
                 iobj = obj[2:] if obj[0:2] == 'ms' else obj
+                msgs.warn("You need to generate {:s} prior to this calibration..".format(obj))
                 msgs.warn("Use get_{:s}".format(iobj))
                 return False
         return True
