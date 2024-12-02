@@ -130,6 +130,7 @@ class RunAStep(scriptbase.ScriptBase):
         return 0
 
 
+# TODO -- Remove these lines
 if __name__ == '__main__':
     s = RunAStep()
     s.main(s.parse_args())
