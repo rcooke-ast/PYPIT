@@ -292,6 +292,7 @@ class PypeIt:
             # Loop on Detectors
             for self.det in detectors:
                 msgs.info(f'Working on detector {self.det}')
+                # TODO -- Haave this be a call to calib_one()?
                 # Instantiate Calibrations class
                 user_slits = slittrace.merge_user_slit(self.par['rdx']['slitspatnum'],
                                                        self.par['rdx']['maskIDs'])
@@ -300,6 +301,7 @@ class PypeIt:
                     self.calibrations_path, qadir=self.qa_path, reuse_calibs=self.reuse_calibs,
                     show=self.show, user_slits=user_slits,
                     chk_version=self.par['rdx']['chk_version'])
+
                 # Do it
                 # These need to be separate to accommodate COADD2D
                 self.caliBrate.set_config(grp_frames[0], self.det, self.par['calibrations'])
@@ -696,8 +698,8 @@ class PypeIt:
 
         Args:
             frames (:obj:`list`):
-                List of frames to extract; stacked if more than one
-                is provided
+                List of frames to calibrate
+                Only used to idetify the setup and calibration group
             det (:obj:`int`):
                 Detector number (1-indexed)
 

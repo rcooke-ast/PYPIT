@@ -1495,7 +1495,8 @@ class MultiSlitCalibrations(Calibrations):
         # Order matters!  And the name must match a viable "get_{step}" method
         # in Calibrations.
         # TODO: Does the bpm need to be done after the dark?
-        return ['bias', 'dark', 'bpm', 'slits', 'arc', 'tiltimg', 'wv_calib', 'tilts', 'scattlight', 'flats']
+        return ['bias', 'dark', 'bpm', 'slits', 'arc', 'tiltimg', 
+                'wv_calib', 'tilts', 'scattlight', 'flats']
 
 
 class IFUCalibrations(Calibrations):
