@@ -736,9 +736,9 @@ class PypeIt:
             for step in force_steps:
                 caliBrate.success = True
                 if step == force_step:
-                    caliBrate.run_one_step(step, force_remake=True)
+                    caliBrate.run_one_step(step, force='remake')
                 else:
-                    caliBrate.run_one_step(step, force_reload=True)
+                    caliBrate.run_one_step(step)
                 # Check for success
                 if not caliBrate.success:
                     msgs.error(f'Failed to run calibration step: {step}')

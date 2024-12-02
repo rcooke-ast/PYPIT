@@ -347,7 +347,7 @@ class Calibrations:
         if par is not None:
             self.par = par
 
-    def get_arc(self, force_remake:bool=False, force_reload:bool=False):
+    def get_arc(self, force:str=None):
         """
         Load or generate the arc calibration frame.
 
@@ -371,10 +371,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if force_reload and not cal_file.exists():
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
             self.success = False
             return
-        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.msarc = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msarc
 
@@ -396,7 +398,7 @@ class Calibrations:
         # Return it
         return self.msarc
 
-    def get_tiltimg(self, force_remake:bool=False, force_reload:bool=False):
+    def get_tiltimg(self, force:str=None):
         """
         Load or generate the tilt calibration frame.
 
@@ -420,8 +422,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        # TODO -- Add force_reload
-        if cal_file.exists() and self.reuse_calibs:
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
+            self.success = False
+            return
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.mstilt = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.mstilt
 
@@ -502,7 +508,7 @@ class Calibrations:
         self.alignments.to_file()
         return self.alignments
 
-    def get_bias(self, force_reload:bool=False, force_remake:bool=False):
+    def get_bias(self, force:str=None):
         """
         Load or generate the bias calibration frame.
 
@@ -527,10 +533,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if force_reload and not cal_file.exists():
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
             self.success = False
             return
-        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.msbias = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msbias
 
@@ -548,7 +556,7 @@ class Calibrations:
         # Return it
         return self.msbias
 
-    def get_dark(self, force_remake:bool=False, force_reload:bool=False):
+    def get_dark(self, force:str=None):
         """
         Load or generate the dark calibration frame.
 
@@ -572,8 +580,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        # TODO -- Add force_reload
-        if cal_file.exists() and self.reuse_calibs:
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
+            self.success = False
+            return
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.msdark = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msdark
 
@@ -601,7 +613,7 @@ class Calibrations:
         # Return it
         return self.msdark
 
-    def get_bpm(self, frame=None, force_remake:bool=False, force_reload:bool=False):
+    def get_bpm(self, frame=None, force:str=None):
         """
         Load or generate the bad pixel mask.
 
@@ -945,7 +957,7 @@ class Calibrations:
 
         return self.flatimages
 
-    def get_slits(self, force_remake:bool=False, force_reload:bool=False):
+    def get_slits(self, force:str=None):
         """
         Load or generate the definition of the slit boundaries.
 
@@ -974,10 +986,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if force_reload and not cal_file.exists():
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
             self.success = False
             return
-        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.slits = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             self.slits.mask = self.slits.mask_init.copy()
             if self.user_slits is not None:
@@ -1062,7 +1076,7 @@ class Calibrations:
             self.slits.user_mask(detname, self.user_slits)
         return self.slits
 
-    def get_wv_calib(self, force_remake:bool=False, force_reload:bool=False):
+    def get_wv_calib(self, force:str=None):
         """
         Load or generate the 1D wavelength calibrations
 
@@ -1100,12 +1114,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and 
         # we want to reuse it, do so (or just load it):
-        if force_remake:
+        if force == 'remake':
             pass
-        elif force_reload and not cal_file.exists():
+        elif force == 'reload' and not cal_file.exists():
             self.success = False
             return
-        elif force_reload or (self.reuse_calibs and cal_file.exists()): 
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             # Load the file
             self.wv_calib = wavecalib.WaveCalib.from_file(cal_file, chk_version=self.chk_version)
             self.wv_calib.chk_synced(self.slits)
@@ -1208,10 +1222,8 @@ class Calibrations:
         self.wavetilts.to_file()
         return self.wavetilts
 
-    def run_one_step(self, step, force_remake:bool=False,
-                     force_reload:bool=False):
-        getattr(self, f'get_{step}')(force_remake=force_remake,
-                                     force_reload=force_reload)
+    def run_one_step(self, step, force:str=None):
+        getattr(self, f'get_{step}')(force=force)
 
     def run_the_steps(self):
         """
