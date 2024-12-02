@@ -100,6 +100,7 @@ class RunAStep(scriptbase.ScriptBase):
                                overwrite=args.overwrite,
                                redux_path=args.redux_path, calib_only=args.calib_only,
                                logname=logname, show=args.show)
+        pypeIt.reuse_calibs = True
 
         # Find the detectors to reduce
         detectors = pypeIt.select_detectors(
@@ -116,11 +117,9 @@ class RunAStep(scriptbase.ScriptBase):
 
         # Calibrations?
         if args.step in ['arc', 'wv_calib']:
-            pypeIt.reuse_calibs = False
             for det in detectors:
                 pypeIt.calib_one([row], det, force_step=args.step)
         else:
-            pypeIt.reuse_calibs = True
             msgs.error(f"Not ready for this step: {args.step}")
         
         # QA HTML
