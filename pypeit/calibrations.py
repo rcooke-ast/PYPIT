@@ -1066,10 +1066,18 @@ class Calibrations:
             return self.wv_calib
 
         # Check for existing data
-        if not self._chk_objs(['msarc', 'msbpm', 'slits']):
-            msgs.warn('Not enough information to load/generate the wavelength calibration. '
-                      'Skipping and may crash down the line')
-            return None
+        req_objs = ['msarc', 'msbpm', 'slits']
+        chk_objs = self._chk_objs(req_objs)
+        if not chk_objs:
+            if self.try_reload_only:
+                embed(header='try agai 1073 in Calibrations')
+                # Check again
+
+            if chk_objs:
+                msgs.warn('Not enough information to load/generate the wavelength calibration. '
+                        'Skipping and may crash down the line')
+                return None
+            # Try reloading
 
         # Check internals
         self._chk_set(['det', 'calib_ID', 'par'])
@@ -1471,6 +1479,16 @@ class Calibrations:
             ff.write(yaml.dump(utils.yamlify(asn)))
         msgs.info(f'Calibration association file written to: {_ofile}')
 
+    @staticmethod
+    def default_steps():
+        """
+        This defines the steps for calibrations and their order
+
+        Returns:
+            list: Calibration steps, in order of execution
+        """
+        # Order matters!
+        return []
 
 class MultiSlitCalibrations(Calibrations):
     """

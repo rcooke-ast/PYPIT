@@ -692,13 +692,13 @@ class PypeIt:
                                                    self.spectrograph.get_det_name(det))
         return objtype_out, calib_key, obstime, basename, binning
 
-    def calib_one(self, frames, det):
+    def calib_one(self, frames, det, steps:list=None):
         """
         Run Calibration for a single exposure/detector pair
 
         Args:
             frames (:obj:`list`):
-                List of frames to calibrate
+                List of frames )rows) to calibrate
                 Only used to idetify the setup and calibration group
             det (:obj:`int`):
                 Detector number (1-indexed)
@@ -719,6 +719,9 @@ class PypeIt:
             chk_version=self.par['rdx']['chk_version'])
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
+        if steps is not None:
+            caliBrate.steps = steps
+        # Run
         caliBrate.run_the_steps()
 
         return caliBrate
