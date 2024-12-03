@@ -15,8 +15,7 @@ from abc import ABCMeta
 
 from pypeit import msgs, utils
 from pypeit.display import display
-from pypeit.core import skysub, extract, flexure
-
+from pypeit.core import skysub, extract, flexure, flat
 from IPython import embed
 
 
@@ -64,7 +63,7 @@ class Extract:
     @classmethod
     def get_instance(cls, sciImg, slits, sobjs_obj, spectrograph, par, objtype, global_sky=None,
                      bkg_redux_global_sky=None, waveTilts=None, tilts=None, wv_calib=None, waveimg=None,
-                     flatimg=None, bkg_redux=False, return_negative=False, std_redux=False, show=False, basename=None):
+                     flatimages=None, bkg_redux=False, return_negative=False, std_redux=False, show=False, basename=None):
         """
         Instantiate the Extract subclass appropriate for the provided
         spectrograph.
@@ -101,9 +100,9 @@ class Extract:
                 This is the waveCalib object which is optional, but either wv_calib or waveimg must be provided.
             waveimg (`numpy.ndarray`_, optional):
                 Wave image. Either a wave image or wv_calib object (above) must be provided
-            flatimg (`numpy.ndarray`_, optional):
-                Flat image. This is optional, but if provided, it is used to extract the
-                normalized blaze profile. Same shape as ``sciImg``.
+            flatimages (:class:`~pypeit.flatfield.FlatImages`, optional):
+                FlatImages class. This is optional, but if provided, it is used to extract the
+                normalized blaze profile.
             bkg_redux (:obj:`bool`, optional):
                 If True, the sciImg has been subtracted by
                 a background image (e.g. standard treatment in the IR)
@@ -131,12 +130,12 @@ class Extract:
                     if c.__name__ == (spectrograph.pypeline + 'Extract'))(
             sciImg, slits, sobjs_obj, spectrograph, par, objtype, global_sky=global_sky,
             bkg_redux_global_sky=bkg_redux_global_sky, waveTilts=waveTilts, tilts=tilts,
-            wv_calib=wv_calib, waveimg=waveimg, flatimg=flatimg, bkg_redux=bkg_redux, return_negative=return_negative,
-            std_redux=std_redux, show=show, basename=basename)
+            wv_calib=wv_calib, waveimg=waveimg, flatimages=flatimages, bkg_redux=bkg_redux,
+            return_negative=return_negative, std_redux=std_redux, show=show, basename=basename)
 
     def __init__(self, sciImg, slits, sobjs_obj, spectrograph, par, objtype, global_sky=None,
                  bkg_redux_global_sky=None, waveTilts=None, tilts=None, wv_calib=None, waveimg=None,
-                 flatimg=None, bkg_redux=False, return_negative=False, std_redux=False, show=False,
+                 flatimages=None, bkg_redux=False, return_negative=False, std_redux=False, show=False,
                  basename=None):
 
         # Setup the parameters sets for this object. NOTE: This uses objtype, not frametype!
@@ -149,7 +148,6 @@ class Extract:
         self.par = par
         self.global_sky = global_sky if global_sky is not None else np.zeros_like(sciImg.image)
         self.bkg_redux_global_sky = bkg_redux_global_sky
-        self.flatimg = flatimg
 
         self.basename = basename
         # Parse
@@ -246,6 +244,18 @@ class Extract:
             self.fwhmimg = wv_calib.build_fwhmimg(self.tilts, self.slits, initial=True, spat_flexure=self.spat_flexure_shift)
         else:
             msgs.warn("Spectral FWHM image could not be generated")
+
+        # get flatfield image for blaze function
+        self.flatimg = None
+        if flatimages is not None:
+            # This way of getting the flat image (instead of just reading flatimages.pixelflat_model) ensures that the
+            # flat image is available also when an archival pixel flat is used.
+            flat_raw = flatimages.pixelflat_raw if flatimages.pixelflat_raw is not None else flatimages.illumflat_raw
+            if flat_raw is not None and flatimages.pixelflat_norm is not None:
+                # TODO: Can we just use flat_raw if flatimages.pixelflat_norm is None?
+                self.flatimg, _ = flat.flatfield(flat_raw, flatimages.pixelflat_norm)
+        if self.flatimg is None:
+            msgs.warn("No flat image was found. A spectrum of the flatfield will not be extracted!")
 
         # Now apply a global flexure correction to each slit provided it's not a standard star
         if self.par['flexure']['spec_method'] != 'skip' and not self.std_redux:

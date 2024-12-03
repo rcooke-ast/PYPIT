@@ -556,7 +556,7 @@ class SlitTraceSet(calibframe.CalibFrame):
             minmax[slit_idx, 0] = np.min(evalpos)
             minmax[slit_idx, 1] = np.max(evalpos)
             # Calculate the WCS from the pixel positions
-            slitID = np.ones(evalpos.size) * slit_idx + slice_offset - wcs.wcs.crpix[0]
+            slitID = np.ones(evalpos.size) * slit_idx + slice_offset
             world_ra, world_dec, _ = wcs.wcs_pix2world(slitID, evalpos, tilts[onslit_init]*(self.nspec-1), 0)
             # Set the RA first and DEC next
             raimg[onslit] = world_ra.copy()
