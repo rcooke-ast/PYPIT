@@ -351,6 +351,12 @@ class Calibrations:
         """
         Load or generate the arc calibration frame.
 
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
+
         Returns:
             :class:`~pypeit.images.buildimage.ArcImage`: The processed
             calibration image.
@@ -402,6 +408,12 @@ class Calibrations:
         """
         Load or generate the tilt calibration frame.
 
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
+
         Returns:
             :class:`~pypeit.images.buildimage.TiltImage`: The processed
             calibration image.
@@ -450,9 +462,15 @@ class Calibrations:
         # Return it
         return self.mstilt
 
-    def get_align(self):
+    def get_align(self, force:str=None):
         """
         Load or generate the alignment calibration frame.
+
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
 
         Returns:
             :class:`~pypeit.alignframe.Alignments`: The processed alignment
@@ -512,6 +530,12 @@ class Calibrations:
         """
         Load or generate the bias calibration frame.
 
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
+
         Returns:
             :class:`~pypeit.images.buildimage.BiasImage`: The processed
             calibration image.
@@ -559,6 +583,12 @@ class Calibrations:
     def get_dark(self, force:str=None):
         """
         Load or generate the dark calibration frame.
+
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
 
         Returns:
             :class:`~pypeit.images.buildimage.DarkImage`: The processed
@@ -620,6 +650,10 @@ class Calibrations:
         This is primarily a wrapper for
         :func:`~pypeit.spectrographs.spectrograph.Spectrograph.bpm`.
 
+        Args:
+            force (:obj:`str`, optional):
+                Currently ignored
+
         Returns:
             `numpy.ndarray`_: The bad pixel mask, which should match the shape
             and orientation of a *trimmed* and PypeIt-oriented science image!
@@ -638,6 +672,12 @@ class Calibrations:
     def get_scattlight(self, force:str=None):
         """
         Load or generate the scattered light model.
+
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
 
         Returns:
             :class:`~pypeit.scattlight.ScatteredLight`: The processed calibration image including the model.
@@ -736,6 +776,12 @@ class Calibrations:
     def get_flats(self, force:str=None):
         """
         Load or generate the flat-field calibration images.
+
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
 
         Returns:
             :class:`~pypeit.flatfield.FlatImages`: The processed calibration
@@ -1086,6 +1132,12 @@ class Calibrations:
         """
         Load or generate the 1D wavelength calibrations
 
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
+
         Returns:
             :class:`~pypeit.wavecalib.WaveCalib`: Object containing wavelength
             calibrations and the updated slit mask array.
@@ -1176,6 +1228,12 @@ class Calibrations:
     def get_tilts(self, force:str=None):
         """
         Load or generate the wavelength tilts calibration frame
+
+        Args:
+            force (:obj:`str`, optional):
+                'remake' -- Force the frame to be remade.
+                'reload' -- Reload the frame if it exists.
+                None -- Load the existing frame if it exists and reuse_calibs=True
 
         Returns:
             :class:`~pypeit.wavetilts.WaveTilts`: Object containing the

@@ -53,6 +53,7 @@ from pypeit.scripts import trace_edges
 from pypeit.scripts import view_fits
 from pypeit.scripts import compile_wvarxiv
 from pypeit.scripts import show_pixflat
+from pypeit.scripts import run_to_calibstep
 
 
 # Build the list of script classes

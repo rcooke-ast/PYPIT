@@ -701,11 +701,11 @@ class PypeIt:
 
         Args:
             frames (:obj:`list`):
-                List of frames )rows) to calibrate
+                List of frames (rows) to calibrate
                 Only used to idetify the setup and calibration group
             det (:obj:`int`):
                 Detector number (1-indexed)
-            stop_at_step (:obj:`list`, optional):
+            stop_at_step (:obj:`str`, optional):
                 Run only up to this calibration step.
                 
 
