@@ -729,6 +729,7 @@ class PypeIt:
             chk_version=self.par['rdx']['chk_version'],
             state=self.run_state)
 
+
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
         if force_step is not None:
@@ -748,6 +749,8 @@ class PypeIt:
                     msgs.error(f'Failed to run calibration step: {step}')
         else:
             caliBrate.run_the_steps()
+
+        embed(header='753 of pypeit')
 
         return caliBrate
 

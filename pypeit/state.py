@@ -14,7 +14,6 @@ class BaseCalibState(BaseModel):
     output_files: Optional[List[str]] = None
     qa_files: Optional[List[str]] = None
     status: Literal["complete", "fail", "undone", "running"] = "undone"
-    metrics: Optional[Dict[str, float]] = None
 
 class BiasCalibState(BaseCalibState):
     step: Literal["bias"] = "bias"
@@ -23,17 +22,21 @@ class BiasCalibState(BaseCalibState):
     std: Optional[float] = None
 
 class WvCalibSlit(BaseModel):
-    status: Literal["complete", "fail", "undone"] = "undone"
+    status: Literal["success", "fail", "undone"] = "undone"
     # Metrics
     rms: Optional[float] = None
 
 class WvCalibState(BaseCalibState):
     step: Literal["wv_calib"] = "wv_calib"
-    slits: Optional[Dict[str, WvCalibSlit]] = Field(default_factory=dict)
+    slits: Optional[Dict[int, WvCalibSlit]] = Field(default_factory=dict)
 
 calib_classes = {
     'bias': BiasCalibState,
     'wv_calib': WvCalibState
+}
+
+slit_classes = {
+    'wv_calib': WvCalibSlit
 }
 
 class RunPypeItState(BaseModel):
@@ -70,6 +73,8 @@ class RunPypeItState(BaseModel):
         if slit is None:
             setattr(self_items[index], key, value)
         else:
+            if slit not in self_items[index].slits.keys():
+                self_items[index].slits[slit] = slit_classes[step]()
             setattr(self_items[index].slits[slit], key, value)
 
     def write(self, path:str=None):

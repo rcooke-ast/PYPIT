@@ -513,6 +513,17 @@ class Calibrations:
         self.alignments.to_file()
         return self.alignments
 
+    def bias_state(self, outfile:str):
+        if self.state is None:
+            return
+        #
+        self.state.update_calib('bias', self.calib_ID, self.det, 
+                                'input_files', self.raw_files)
+        self.state.update_calib('bias', self.calib_ID, self.det, 
+                                'output_files', [str(outfile)])
+        self.state.update_calib('bias', self.calib_ID, self.det, 'mean', self.msbias.image.mean())
+        self.state.update_calib('bias', self.calib_ID, self.det, 'std', self.msbias.image.std())
+
     def get_bias(self, force:str=None):
         """
         Load or generate the bias calibration frame.
@@ -526,11 +537,11 @@ class Calibrations:
 
         # Find the calibrations
         frame = {'type': 'bias', 'class': buildimage.BiasImage}
-        raw_files, cal_file, calib_key, setup, calib_id, detname \
+        self.raw_files, cal_file, calib_key, setup, calib_id, detname \
                 = self.find_calibrations(frame['type'], frame['class'])
 
         # If no raw files are available and no processed calibration frame
-        if len(raw_files) == 0 and cal_file is None:
+        if len(self.raw_files) == 0 and cal_file is None:
             msgs.warn(f'No raw {frame["type"]} frames found and unable to identify a relevant '
                       'processed calibration frame.  Continuing without a bias...')
             self.msbias = None
@@ -545,27 +556,23 @@ class Calibrations:
             return
         elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.msbias = frame['class'].from_file(cal_file, chk_version=self.chk_version)
+            self.bias_state(cal_file)
             return self.msbias
 
         # Perform a check on the files
-        self.check_calibrations(raw_files)
+        self.check_calibrations(self.raw_files)
 
         # Otherwise, create the processed file.
         msgs.info(f'Preparing a {frame["class"].calib_type} calibration frame.')
         self.msbias = buildimage.buildimage_fromlist(self.spectrograph, self.det,
-                                                     self.par['biasframe'], raw_files,
+                                                     self.par['biasframe'], self.raw_files,
                                                      calib_dir=self.calib_dir, setup=setup,
                                                      calib_id=calib_id)
         # Save the result
         self.msbias.to_file()
 
         # State
-        if self.state is not None:
-            self.state.update_calib('bias', self.calib_ID, self.det, 
-                                    'input_files', raw_files)
-            embed(header='566 of Calibrations: Check the state')
-            self.state.update_calib('bias', self.calib_ID, self.det, 'mean', self.msbias.mean)
-            self.state.update_calib('bias', self.calib_ID, self.det, 'std', self.msbias.std)
+        self.bias_state(self.msbias.get_path())
 
         # Return it
         return self.msbias
@@ -1097,6 +1104,28 @@ class Calibrations:
             self.slits.user_mask(detname, self.user_slits)
         return self.slits
 
+    def wvcalib_state(self, outfile:str):
+        if self.state is None:
+            return
+        # Update
+        self.state.update_calib('wv_calib', self.calib_ID, self.det, 
+                                'output_files', [str(outfile)])
+        for islit in range(self.slits.nslits):
+            slit_ID = int(self.slits.slitord_id[islit])
+            # Status
+            if self.slits.bitmask.flagged(
+                self.slits.mask[islit], flag='BADWVCALIB'):
+                status = 'fail'
+            else:
+                status = 'success'
+            self.state.update_calib('wv_calib', self.calib_ID, self.det, 
+                                'status', status, slit=slit_ID)
+            # Metrics
+            if status == 'success':
+                self.state.update_calib('wv_calib', self.calib_ID, self.det, 
+                                'rms', self.wv_calib.wv_fits[islit].rms,
+                                slit=slit_ID)
+
     def get_wv_calib(self, force:str=None):
         """
         Load or generate the 1D wavelength calibrations
@@ -1153,6 +1182,7 @@ class Calibrations:
 
             # Return
             if (self.par['wavelengths']['redo_slits'] is None) or self.try_reload_only:
+                self.wvcalib_state(cal_file)
                 return self.wv_calib
 
         # Determine lamp list to use for wavecalib
@@ -1184,6 +1214,9 @@ class Calibrations:
             self.slits.to_file()
         # Save calibration frame
         self.wv_calib.to_file()
+
+        # State
+        self.wvcalib_state(self.wv_calib.get_path())
 
         # Return
         return self.wv_calib
@@ -1266,6 +1299,7 @@ class Calibrations:
             if self.state is not None:
                 self.state.update_calib(step, self.calib_ID, self.det, 'status', 
                                     'success' if self.success else 'failed')
+                self.state.write()
             if not self.success:
                 self.failed_step = f'get_{step}'
                 return
