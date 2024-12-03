@@ -692,7 +692,7 @@ class PypeIt:
                                                    self.spectrograph.get_det_name(det))
         return objtype_out, calib_key, obstime, basename, binning
 
-    def calib_one(self, frames, det, force_step:str=None):
+    def calib_one(self, frames, det, stop_at_step:str=None):
         """
         Run Calibration for a single exposure/detector pair
 
@@ -702,12 +702,8 @@ class PypeIt:
                 Only used to idetify the setup and calibration group
             det (:obj:`int`):
                 Detector number (1-indexed)
-            force_step (:obj:`list`, optional):
-                Single step to run.  If None, run all the default steps.
-                If provided, any exiting calibration is ignored 
-                and the file is remade.
-                Also, the required files are reloaded if they
-                exist and the code exits if they do not.
+            stop_at_step (:obj:`list`, optional):
+                Run only up to this calibration step.
                 
 
         Returns:
@@ -727,6 +723,8 @@ class PypeIt:
 
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
+
+        '''
         if force_step is not None:
             if force_step not in caliBrate.steps:
                 msgs.error(f'Force step {force_step} is not a valid calibration step.')
@@ -744,6 +742,8 @@ class PypeIt:
                     msgs.error(f'Failed to run calibration step: {step}')
         else:
             caliBrate.run_the_steps()
+        '''
+        caliBrate.run_the_steps(stop_at_step=stop_at_step)
 
         return caliBrate
 

@@ -1234,18 +1234,26 @@ class Calibrations:
         self.wavetilts.to_file()
         return self.wavetilts
 
-    def run_one_step(self, step, force:str=None):
-        getattr(self, f'get_{step}')(force=force)
+    #def run_one_step(self, step, force:str=None):
+    #    getattr(self, f'get_{step}')(force=force)
 
-    def run_the_steps(self):
+    def run_the_steps(self, stop_at_step:str=None):
         """
         Run full the full recipe of calibration steps.
         """
         self.success = True
         for step in self.steps:
-            self.run_one_step(step)
+            #self.run_one_step(step)
+            if stop_at_step is not None and step == stop_at_step:
+                force = 'remake'
+            else:
+                force = None
+            getattr(self, f'get_{step}')(force=force)
             if not self.success:
                 self.failed_step = f'get_{step}'
+                return
+            if stop_at_step is not None and step == stop_at_step:
+                msgs.info(f"Calibrations stopping at {stop_at_step}") 
                 return
         msgs.info("Calibration complete and/or fully loaded!")
         msgs.info("#######################################################################")

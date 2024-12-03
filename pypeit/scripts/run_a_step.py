@@ -118,7 +118,7 @@ class RunAStep(scriptbase.ScriptBase):
         # Calibrations?
         if args.step in ['arc', 'wv_calib']:
             for det in detectors:
-                pypeIt.calib_one([row], det, force_step=args.step)
+                pypeIt.calib_one([row], det, stop_at_step=args.step)
         else:
             msgs.error(f"Not ready for this step: {args.step}")
         
