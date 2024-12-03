@@ -1,5 +1,5 @@
 """
-Main execution script for ``PypeIt`` reduction pipelines.
+Script to run to a single calibration step for an input frame
 
 .. include common links, assuming primary doc root is up one directory
 .. include:: ../include/links.rst
@@ -23,7 +23,7 @@ class RunAStep(scriptbase.ScriptBase):
         """
         Return the name of the executable.
         """
-        return 'run_a_step'
+        return 'run_to_calibstep'
 
     @classmethod
     def usage(cls):
@@ -71,12 +71,6 @@ class RunAStep(scriptbase.ScriptBase):
                                  'remote control ginga session via '
                                  '"ginga --modules=RC,SlitWavelength &"')
 
-        # TODO: JFH Should the default now be true with the new definition.
-        parser.add_argument('-o', '--overwrite', default=False, action='store_true',
-                            help='Overwrite any existing files/directories')
-        parser.add_argument('-c', '--calib_only', default=False, action='store_true',
-                            help='Only run on calibrations')
-
         return parser
 
     @staticmethod
@@ -97,8 +91,7 @@ class RunAStep(scriptbase.ScriptBase):
 
         # Instantiate the main pipeline reduction object
         pypeIt = pypeit.PypeIt(args.pypeit_file, verbosity=args.verbosity,
-                               overwrite=args.overwrite,
-                               redux_path=args.redux_path, calib_only=args.calib_only,
+                               redux_path=args.redux_path, 
                                logname=logname, show=args.show)
         pypeIt.reuse_calibs = True
 
@@ -116,11 +109,8 @@ class RunAStep(scriptbase.ScriptBase):
         row = int(row)
 
         # Calibrations?
-        if args.step in ['arc', 'wv_calib']:
-            for det in detectors:
-                pypeIt.calib_one([row], det, stop_at_step=args.step)
-        else:
-            msgs.error(f"Not ready for this step: {args.step}")
+        for det in detectors:
+            pypeIt.calib_one([row], det, stop_at_step=args.step)
         
         # QA HTML
         msgs.info('Generating QA HTML')

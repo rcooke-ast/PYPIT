@@ -741,8 +741,6 @@ class Calibrations:
             :class:`~pypeit.flatfield.FlatImages`: The processed calibration
             image.
         """
-        if force is not None:
-            raise NotImplementedError('Force is not implemented for get_flats')
         # Check for existing data
         if not self._chk_objs(['msarc', 'msbpm', 'slits', 'wv_calib']):
             msgs.warn('Must have the arc, bpm, slits, and wv_calib defined to make flats!  '
@@ -821,7 +819,8 @@ class Calibrations:
         calib_key = illum_calib_key if pixel_calib_key is None else pixel_calib_key
         setup = illum_setup if pixel_setup is None else pixel_setup
         calib_id = illum_calib_id if pixel_calib_id is None else pixel_calib_id
-        if cal_file.exists() and self.reuse_calibs:
+
+        if cal_file.exists() and self.reuse_calibs and not force == 'remake':
             self.flatimages = flatfield.FlatImages.from_file(cal_file,
                                                              chk_version=self.chk_version)
             self.flatimages.is_synced(self.slits)
@@ -1010,7 +1009,7 @@ class Calibrations:
         edges_file = Path(edgetrace.EdgeTraceSet.construct_file_name(calib_key,
                             calib_dir=self.calib_dir)).absolute()
         # If so, reuse it?
-        if edges_file.exists() and self.reuse_calibs:
+        if edges_file.exists() and self.reuse_calibs and force != 'remake':
             # Yep!  Load it and parse it into slits.
             self.slits = edgetrace.EdgeTraceSet.from_file(edges_file,
                                                           chk_version=self.chk_version).get_slits()

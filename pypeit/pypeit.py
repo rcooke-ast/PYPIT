@@ -292,21 +292,24 @@ class PypeIt:
             # Loop on Detectors
             for self.det in detectors:
                 msgs.info(f'Working on detector {self.det}')
-                # TODO -- Haave this be a call to calib_one()?
-                # Instantiate Calibrations class
-                user_slits = slittrace.merge_user_slit(self.par['rdx']['slitspatnum'],
-                                                       self.par['rdx']['maskIDs'])
-                self.caliBrate = calibrations.Calibrations.get_instance(
-                    self.fitstbl, self.par['calibrations'], self.spectrograph,
-                    self.calibrations_path, qadir=self.qa_path, reuse_calibs=self.reuse_calibs,
-                    show=self.show, user_slits=user_slits,
-                    chk_version=self.par['rdx']['chk_version'])
 
-                # Do it
-                # These need to be separate to accommodate COADD2D
-                self.caliBrate.set_config(grp_frames[0], self.det, self.par['calibrations'])
+                self.calib_one(grp_frames, self.det)
 
-                self.caliBrate.run_the_steps()
+#                # Instantiate Calibrations class
+#                user_slits = slittrace.merge_user_slit(self.par['rdx']['slitspatnum'],
+#                                                       self.par['rdx']['maskIDs'])
+#                self.caliBrate = calibrations.Calibrations.get_instance(
+#                    self.fitstbl, self.par['calibrations'], self.spectrograph,
+#                    self.calibrations_path, qadir=self.qa_path, reuse_calibs=self.reuse_calibs,
+#                    show=self.show, user_slits=user_slits,
+#                    chk_version=self.par['rdx']['chk_version'])
+#
+#                # Do it
+#                # These need to be separate to accommodate COADD2D
+#                self.caliBrate.set_config(grp_frames[0], self.det, self.par['calibrations'])
+#
+#                self.caliBrate.run_the_steps()
+
                 if not self.caliBrate.success:
                     msgs.warn(f'Calibrations for detector {self.det} were unsuccessful!  The step '
                               f'that failed was {self.caliBrate.failed_step}.  Continuing to next '
@@ -721,28 +724,14 @@ class PypeIt:
             reuse_calibs=self.reuse_calibs, show=self.show, user_slits=user_slits,
             chk_version=self.par['rdx']['chk_version'])
 
+        # Check
+        if stop_at_step is not None and stop_at_step not in caliBrate.steps:
+            msgs.error(f"Requested stop_at_step={stop_at_step} is not a valid calibration step.")
+            
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
 
-        '''
-        if force_step is not None:
-            if force_step not in caliBrate.steps:
-                msgs.error(f'Force step {force_step} is not a valid calibration step.')
-            # Run through the default steps to the desired one
-            force_steps = caliBrate.steps[:caliBrate.steps.index(force_step)+1]
-            # Usually user defined
-            for step in force_steps:
-                caliBrate.success = True
-                if step == force_step:
-                    caliBrate.run_one_step(step, force='remake')
-                else:
-                    caliBrate.run_one_step(step)
-                # Check for success
-                if not caliBrate.success:
-                    msgs.error(f'Failed to run calibration step: {step}')
-        else:
-            caliBrate.run_the_steps()
-        '''
+        # Run
         caliBrate.run_the_steps(stop_at_step=stop_at_step)
 
         return caliBrate
