@@ -1249,8 +1249,7 @@ class Calibrations:
         Run full the full recipe of calibration steps.
         """
         self.success = True
-        for step in steps:
-            # Run
+        for step in self.steps:
             self.run_one_step(step)
             if self.state is not None:
                 self.state.update_calib(step, self.calib_ID, self.det, 'status', 
