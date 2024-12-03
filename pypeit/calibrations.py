@@ -1229,8 +1229,6 @@ class Calibrations:
         """
         Run full the full recipe of calibration steps.
         """
-        if steps is None:
-            steps = self.steps
         self.success = True
         for step in steps:
             self.run_one_step(step)
