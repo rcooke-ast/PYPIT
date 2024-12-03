@@ -7,7 +7,7 @@ Script to run to a single calibration step for an input frame
 
 from pypeit.scripts import scriptbase
 
-class RunAStep(scriptbase.ScriptBase):
+class RunToCalibStep(scriptbase.ScriptBase):
 
     # TODO: Combining classmethod and property works in python 3.9 and later
     # only: https://docs.python.org/3.9/library/functions.html#classmethod
@@ -23,41 +23,20 @@ class RunAStep(scriptbase.ScriptBase):
         """
         Return the name of the executable.
         """
-        return 'run_to_calibstep'
-
-    @classmethod
-    def usage(cls):
-        """
-        Print pypeit usage description.
-        """
-        import textwrap
-        import pypeit
-        from pypeit.spectrographs import available_spectrographs
-
-        spclist = ', '.join(available_spectrographs)
-        spcl = textwrap.wrap(spclist, width=70)
-        descs = '##  '
-        descs += '\x1B[1;37;42m' + 'PypeIt : '
-        descs += 'The Python Spectroscopic Data Reduction Pipeline v{0:s}'.format(pypeit.__version__) \
-                  + '\x1B[' + '0m' + '\n'
-        descs += '##  '
-        descs += '\n##  Available spectrographs include:'
-        for ispcl in spcl:
-            descs += '\n##   ' + ispcl
-        return descs
+        return 'pypeit_run_to_calibstep'
 
     @classmethod
     def get_parser(cls, width=None):
         import argparse
 
-        parser = super().get_parser(description=cls.usage(),
+        parser = super().get_parser(description='Run PypeIt to a single calibration step for an input frame',
                                     width=width, formatter=argparse.RawDescriptionHelpFormatter)
         parser.add_argument('pypeit_file', type=str,
                             help='PypeIt reduction file (must have .pypeit extension)')
-        parser.add_argument('frame', type=str, help='Frame to reduce')
-        parser.add_argument('step', type=str, help='Step to perform')
+        parser.add_argument('frame', type=str, help='Raw science frame to reduce as listed in your PypeIt file, e.g. b28.fits.gz')
+        parser.add_argument('step', type=str, help='Calibration step to perform')
         #
-        parser.add_argument('--det', type=str, help='Detector to reduce')
+        #parser.add_argument('--det', type=str, help='Detector to reduce')
 
         # TODO -- Grab these from run_pypeit.py ?
         parser.add_argument('-v', '--verbosity', type=int, default=2,
@@ -99,8 +78,8 @@ class RunAStep(scriptbase.ScriptBase):
         detectors = pypeIt.select_detectors(
             pypeIt.spectrograph, pypeIt.par['rdx']['detnum'],
             slitspatnum=pypeIt.par['rdx']['slitspatnum'])
-        if args.det is not None:
-            embed(header='Check detectors and deal!')
+        #if args.det is not None:
+        #    embed(header='Check detectors and deal!')
 
         # Find the row of the frame
         row = np.where(pypeIt.fitstbl['filename'] == args.frame)[0]
@@ -118,11 +97,4 @@ class RunAStep(scriptbase.ScriptBase):
         msgs.close()
 
         return 0
-
-
-# TODO -- Remove these lines
-if __name__ == '__main__':
-    s = RunAStep()
-    s.main(s.parse_args())
-
 
