@@ -649,7 +649,7 @@ class Calibrations:
         # Return
         return self.msbpm
 
-    def get_scattlight(self):
+    def get_scattlight(self, force:str=None):
         """
         Load or generate the scattered light model.
 
@@ -678,7 +678,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if cal_file.exists() and self.reuse_calibs:
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
+            self.success = False
+            return
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.msscattlight = frame['class'].from_file(cal_file, chk_version=self.chk_version)
             return self.msscattlight
 
@@ -742,7 +747,7 @@ class Calibrations:
 
         return self.msscattlight
 
-    def get_flats(self):
+    def get_flats(self, force:str=None):
         """
         Load or generate the flat-field calibration images.
 
@@ -750,6 +755,8 @@ class Calibrations:
             :class:`~pypeit.flatfield.FlatImages`: The processed calibration
             image.
         """
+        if force is not None:
+            raise NotImplementedError('Force is not implemented for get_flats')
         # Check for existing data
         if not self._chk_objs(['msarc', 'msbpm', 'slits', 'wv_calib']):
             msgs.warn('Must have the arc, bpm, slits, and wv_calib defined to make flats!  '
@@ -1181,7 +1188,7 @@ class Calibrations:
         # Return
         return self.wv_calib
 
-    def get_tilts(self):
+    def get_tilts(self, force:str=None):
         """
         Load or generate the wavelength tilts calibration frame
 
@@ -1212,7 +1219,12 @@ class Calibrations:
 
         # If a processed calibration frame exists and we want to reuse it, do
         # so:
-        if cal_file.exists() and self.reuse_calibs:
+        if force == 'remake':
+            pass
+        elif force == 'reload' and not cal_file.exists():
+            self.success = False
+            return
+        elif force == 'reload' or (self.reuse_calibs and cal_file.exists()): 
             self.wavetilts = wavetilts.WaveTilts.from_file(cal_file, chk_version=self.chk_version)
             self.wavetilts.is_synced(self.slits)
             self.slits.mask_wavetilts(self.wavetilts)
