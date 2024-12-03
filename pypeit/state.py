@@ -13,7 +13,7 @@ class BaseCalibState(BaseModel):
     input_files: Optional[List[str]] = None
     output_files: Optional[List[str]] = None
     qa_files: Optional[List[str]] = None
-    status: Literal["complete", "fail", "undone"] = "undone"
+    status: Literal["complete", "fail", "undone", "running"] = "undone"
     metrics: Optional[Dict[str, float]] = None
 
 class BiasCalibState(BaseCalibState):
@@ -31,19 +31,40 @@ class WvCalibState(BaseCalibState):
     step: Literal["wv_calib"] = "wv_calib"
     slits: Optional[Dict[str, WvCalibSlit]] = Field(default_factory=dict)
 
+calib_classes = {
+    'bias': BiasCalibState,
+    'wv_calib': WvCalibState
+}
+
 class RunPypeItState(BaseModel):
     pypeit_file: str
     current_step: str
+    previous_step: str = 'none'
     bias: Optional[List[BiasCalibState]] = Field(default_factory=list)
     wv_calib: Optional[List[WvCalibState]] = Field(default_factory=list)
 
     def update_calib(self, step:str, calib_id: int, det: str, key:str, value,
                      slit:str=None):
+        # Current step
+        if self.current_step != step:
+            self.previous_step = self.current_step
+        self.current_step = step
+        # Select items so far
+        if step not in ['bias', 'wv_calib']:
+            return
+        # Grab the entry
         self_items = getattr(self, step)
+        found_it = False
         # Grab the tiem
         for index, item in enumerate(self_items):
             if item.calib_id == calib_id and item.det == det:
+                found_it = True
                 break
+        # Create it?
+        if not found_it:
+            item = calib_classes[step](calib_id=calib_id, det=det)
+            self_items.append(item)
+            index = -1
         # Set
         if slit is None:
             setattr(self_items[index], key, value)
@@ -56,7 +77,4 @@ class RunPypeItState(BaseModel):
         # Write
         with io.open(outfile, 'w', encoding='utf-8') as f:
             f.write(json_string)
-        #with open(outfile, 'w') as f:
-        #    f.write(json_string)
-
         

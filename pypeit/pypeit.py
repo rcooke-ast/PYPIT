@@ -47,6 +47,7 @@ from pypeit.history import History
 from pypeit.metadata import PypeItMetaData
 from pypeit.manual_extract import ManualExtractionObj
 from pypeit.core import skysub
+from pypeit import state
 
 from linetools import utils as ltu
 
@@ -99,6 +100,7 @@ class PypeIt:
         self.logname = logname
         self.verbosity = verbosity
         self.pypeit_file = pypeit_file
+        self.run_state = state.RunPypeItState(pypeit_file=pypeit_file, current_step='init')
         
         self.msgs_reset()
         
@@ -300,7 +302,8 @@ class PypeIt:
                     self.fitstbl, self.par['calibrations'], self.spectrograph,
                     self.calibrations_path, qadir=self.qa_path, reuse_calibs=self.reuse_calibs,
                     show=self.show, user_slits=user_slits,
-                    chk_version=self.par['rdx']['chk_version'])
+                    chk_version=self.par['rdx']['chk_version'],
+                    state=self.run_state)
 
                 # Do it
                 # These need to be separate to accommodate COADD2D

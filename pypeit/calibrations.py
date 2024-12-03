@@ -46,6 +46,7 @@ from pypeit import io
 from pypeit import utils
 from pypeit import cache
 from pypeit import dataPaths
+from pypeit import state
 
 
 class Calibrations:
@@ -151,7 +152,8 @@ class Calibrations:
         return calibclass(fitstbl, par, spectrograph, caldir, **kwargs)
 
     def __init__(self, fitstbl, par, spectrograph, caldir, qadir=None,
-                 reuse_calibs=False, show=False, user_slits=None, chk_version=True):
+                 reuse_calibs=False, show=False, user_slits=None, chk_version=True,
+                 state:state.RunPypeItState=None):
 
         # Check the types
         # TODO -- Remove this None option once we have data models for all the Calibrations
@@ -186,6 +188,9 @@ class Calibrations:
 
         # Debugging
         self.show = show
+
+        # State
+        self.state = state
 
         # Restrict on slits?
         self.user_slits = user_slits
@@ -553,6 +558,15 @@ class Calibrations:
                                                      calib_id=calib_id)
         # Save the result
         self.msbias.to_file()
+
+        # State
+        if self.state is not None:
+            self.state.update_calib('bias', self.calib_ID, self.det, 
+                                    'input_files', raw_files)
+            embed(header='566 of Calibrations: Check the state')
+            self.state.update_calib('bias', self.calib_ID, self.det, 'mean', self.msbias.mean)
+            self.state.update_calib('bias', self.calib_ID, self.det, 'std', self.msbias.std)
+
         # Return it
         return self.msbias
 
@@ -1223,6 +1237,11 @@ class Calibrations:
         return self.wavetilts
 
     def run_one_step(self, step, force:str=None):
+        # State
+        if self.state is not None:
+            self.state.update_calib(step, self.calib_ID, self.det, 'status', 'running')
+            self.state.write()
+        # Run
         getattr(self, f'get_{step}')(force=force)
 
     def run_the_steps(self):
@@ -1233,7 +1252,11 @@ class Calibrations:
             steps = self.steps
         self.success = True
         for step in steps:
+            # Run
             self.run_one_step(step)
+            if self.state is not None:
+                self.state.update_calib(step, self.calib_ID, self.det, 'status', 
+                                    'success' if self.success else 'failed')
             if not self.success:
                 self.failed_step = f'get_{step}'
                 return
