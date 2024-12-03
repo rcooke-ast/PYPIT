@@ -8,7 +8,7 @@ import io
 # Calibration state
 class BaseCalibState(BaseModel):
     calib_id: int # Calibration ID
-    det: str      # Detector
+    det: int | List[int]  # Detector number or mosaic tuple
     step: str
     input_files: Optional[List[str]] = None
     output_files: Optional[List[str]] = None
@@ -57,6 +57,7 @@ class RunPypeItState(BaseModel):
         found_it = False
         # Grab the tiem
         for index, item in enumerate(self_items):
+            # TODO -- if det is a tuple, this will probably fail
             if item.calib_id == calib_id and item.det == det:
                 found_it = True
                 break

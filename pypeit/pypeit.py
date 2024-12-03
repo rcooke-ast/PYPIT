@@ -726,7 +726,8 @@ class PypeIt:
             self.fitstbl, self.par['calibrations'], self.spectrograph,
             self.calibrations_path, qadir=self.qa_path,
             reuse_calibs=self.reuse_calibs, show=self.show, user_slits=user_slits,
-            chk_version=self.par['rdx']['chk_version'])
+            chk_version=self.par['rdx']['chk_version'],
+            state=self.run_state)
 
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
