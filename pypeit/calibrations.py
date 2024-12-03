@@ -1230,7 +1230,7 @@ class Calibrations:
         Run full the full recipe of calibration steps.
         """
         self.success = True
-        for step in steps:
+        for step in self.steps:
             self.run_one_step(step)
             if not self.success:
                 self.failed_step = f'get_{step}'
