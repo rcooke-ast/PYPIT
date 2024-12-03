@@ -201,6 +201,33 @@ run_pypeit
 This is the main executable for PypeIt for its core end-to-end data processing.
 See :ref:`run-pypeit` for details.
 
+pypeit_run_to_calibstep
+-----------------------
+
+This runs PypeIt to a given calibration step for a given frame.
+This is primarily provided to re-run a single calibration step after 
+the user has modified their ``pypeit`` file.  It is expected that
+the user has already attempted a full reduction with ``run_pypeit``.
+following the details in :ref:`run-pypeit`.
+
+The user provides: (1) the PypeIt file, (2) the raw science file whose 
+calibration file(s) you wish to re-run, and (3) the calibration step
+to re-run.  All steps up to and including the requested step will be
+run, although previous steps will be skipped if the calibration files
+are already present (these will be loaded, as appropriate).
+
+The script usage can be displayed by calling the script with the
+``-h`` option:
+
+.. include:: help/pypeit_run_to_calibstep.rst
+
+An example call is:
+
+.. code-block:: console
+
+    pypeit_run_to_calibstep shane_kast_blue_A.pypeit b28.fits.gz wv_calib
+
+
 pypeit_trace_edges
 ------------------
 
