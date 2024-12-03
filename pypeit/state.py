@@ -28,8 +28,8 @@ class WvCalibSlit(BaseModel):
     rms: Optional[float] = None
 
 class WvCalibState(BaseCalibState):
-    step: Literal["bias"] = "wv_calib"
-    slits: Optional[Dict[str, WvCalibSlit]] = None
+    step: Literal["wv_calib"] = "wv_calib"
+    slits: Optional[Dict[str, WvCalibSlit]] = Field(default_factory=dict)
 
 class RunPypeItState(BaseModel):
     pypeit_file: str
@@ -37,15 +37,18 @@ class RunPypeItState(BaseModel):
     bias: Optional[List[BiasCalibState]] = Field(default_factory=list)
     wv_calib: Optional[List[WvCalibState]] = Field(default_factory=list)
 
-    def update_calib(self, step:str, calib_id: int, det: str, key:str, value):
+    def update_calib(self, step:str, calib_id: int, det: str, key:str, value,
+                     slit:str=None):
         self_items = getattr(self, step)
         # Grab the tiem
         for index, item in enumerate(self_items):
             if item.calib_id == calib_id and item.det == det:
                 break
-
         # Set
-        setattr(self_items[index], key, value)
+        if slit is None:
+            setattr(self_items[index], key, value)
+        else:
+            setattr(self_items[index].slits[slit], key, value)
 
     def write(self, path:str=None):
         outfile = self.pypeit_file.replace('.pypeit', '_state.json') if path is None else path
