@@ -25,6 +25,9 @@ Instrument-specific Updates
 Script Changes
 --------------
 
+- Added ``pypeit_run_to_calibstep`` to run PypeIt to an input calibration
+  step. This script is useful to re-generate calibration files for a given
+  configuration without running the full reduction.
 
 
 Datamodel Changes
