@@ -9,7 +9,7 @@ from pathlib import Path
 from qtpy.QtWidgets import QGroupBox, QHBoxLayout, QVBoxLayout, QComboBox, QToolButton, QFileDialog, QWidget, QGridLayout, QFormLayout
 from qtpy.QtWidgets import QMenu, QTabWidget, QTreeView, QLayout, QLabel, QScrollArea, QListView, QTableView, QPushButton, QStyleOptionButton, QProgressDialog, QDialog, QHeaderView, QSizePolicy, QCheckBox, QDialog
 from qtpy.QtWidgets import QAction, QAbstractItemView, QStyledItemDelegate, QButtonGroup, QStyle, QTabBar,QAbstractItemDelegate, QSplitter
-from qtpy.QtGui import QIcon,QDesktopServices, QMouseEvent, QKeySequence, QPalette, QColor, QValidator, QFont, QFontDatabase, QFontMetrics, QTextCharFormat, QTextCursor
+from qtpy.QtGui import QDesktopServices, QMouseEvent, QKeySequence, QPalette, QColor, QValidator, QFont, QFontDatabase, QFontMetrics, QTextCharFormat, QTextCursor
 from qtpy.QtCore import Qt, QUrl, QObject, QEvent, QSize, Signal,QSettings, QStringListModel, QAbstractItemModel, QModelIndex, QMargins, QSortFilterProxyModel, QRect
 
 from pypeit.spectrographs import  available_spectrographs
@@ -625,6 +625,11 @@ class PypeItMetadataView(QTableView):
         """
         Fix column and row sizes after the model is reset.
         """
+        colCount = self.model().columnCount()
+        msgs.info(f"# Cols: {colCount}")
+        colSizeHints = [self.sizeHintForColumn(i) for i in range(colCount)]
+        msgs.info(f"Col size hints: {colSizeHints}")
+
         self.resizeColumnsToContents()
         self.resizeRowsToContents()
 
@@ -750,14 +755,17 @@ class ConfigValuesPanel(QGroupBox):
         self._form_widget.setMinimumWidth(self._getMinWidth())
 
 
+        layout.addWidget(self._scroll_area)
+
+        # Set margins within the group box
+        group_box_margin = int(fm.height()/2)
+        layout.setContentsMargins(group_box_margin, group_box_margin, group_box_margin, group_box_margin)
+
         # Figure out the correct height for this panel, so that only the spectrograph and self.number_of_lines
         # config keys are visible
-
-        # Find the minimum height of the form widget needed to hold the total number of config lines
         msgs.info(f"font height: {fm.height()} vertical spacing {self._form_widget_layout.verticalSpacing()}")
-        self.setMaximumHeight(self.computeHeight(len(self._config_labels)))
+        self.setMaximumHeight(self.computeHeight(max(self.lines_to_display, len(self._config_labels))))
                                      
-        layout.addWidget(self._scroll_area)
 
     def computeHeight(self, lines_to_display:int) ->int:
         """Compute the height needed to display a given number of lines
@@ -768,19 +776,33 @@ class ConfigValuesPanel(QGroupBox):
             The vertical size in pixels needed to display the given number of configuration lines
         """
         fm = self.fontMetrics()
-        min_fw_height = self._form_widget_layout.verticalSpacing()*(lines_to_display-1) + fm.height()*lines_to_display
+        verticalSpacing = self._form_widget_layout.verticalSpacing()
+        if verticalSpacing == -1:
+            verticalSpacing = fm.leading()
+            self._form_widget_layout.setVerticalSpacing(fm.leading())
+            msgs.info(f"Set vertical spacing to {verticalSpacing}")
+        min_fw_height = (verticalSpacing)*(lines_to_display-1) + fm.height()*lines_to_display
 
         # The height of this panel is that height plus the margins + the group box title
         scroll_area_margins = self._scroll_area.contentsMargins()
         group_box_margins = self.contentsMargins()
         form_widget_margins = self._form_widget.contentsMargins()
+        layout_margins = self.layout().contentsMargins()
 
-        return (min_fw_height + 
-                fm.height()   +  # Group Box Title
+        msgs.info(f"verticalSpacing: {self._form_widget_layout.verticalSpacing()}")
+        msgs.info(f"fontMetrics height/leading: {fm.height()}/{fm.leading()}")
+        msgs.info(f"group_box_margins (t/b) ({group_box_margins.top()}/{group_box_margins.bottom()})")
+        msgs.info(f"scroll_area_margins (t/b) ({scroll_area_margins.top()}/{scroll_area_margins.bottom()})")
+        msgs.info(f"layout_margins (t/b) ({layout_margins.top()}/{layout_margins.bottom()})")
+        msgs.info(f"form_widget_margins (t/b) ({form_widget_margins.top()}/{form_widget_margins.bottom()})")
+        computedHeight =  (min_fw_height + 
+                # fm.height()   +  # Group Box Title
                 group_box_margins.top()   + group_box_margins.bottom() +
                 scroll_area_margins.top() + scroll_area_margins.bottom() +
+                layout_margins.top()      + layout_margins.bottom() +
                 form_widget_margins.top() + form_widget_margins.bottom())
-
+        msgs.info(f"computedHeight: {computedHeight}")
+        return computedHeight
 
     def setNewValues(self, config_dict: dict) -> None:
         """Update the panel to display new configuration values.
@@ -799,7 +821,9 @@ class ConfigValuesPanel(QGroupBox):
 
         # Reset the minimum width for the new values
         self._form_widget.setMinimumWidth(self._getMinWidth())
-
+        
+        # Reset the maximum height based on the new values.
+        self.setMaximumHeight(self.computeHeight(max(self.lines_to_display, len(self._config_labels))))
 
     def _getMinWidth(self) -> int:
         """Calculate the minimum width needed to display the configuration values."""
@@ -912,8 +936,10 @@ class PypeItFileView(TabManagerBaseTab):
         self.params_tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.params_tree.expandToDepth(1)
         params_group_layout.addWidget(self.params_tree)
-        params_group.setLayout(params_group_layout)        
         fm = params_group.fontMetrics()
+        group_box_padding = int(fm.height()/2)
+        params_group_layout.setContentsMargins(group_box_padding,group_box_padding,group_box_padding,group_box_padding)
+        params_group.setLayout(params_group_layout)        
         pg_cm = params_group.contentsMargins()
         pt_cm = self.params_tree.contentsMargins()
 
@@ -946,6 +972,7 @@ class PypeItFileView(TabManagerBaseTab):
         paths_viewer = QListView(paths_group)
         paths_viewer.setModel(model.paths_model)
         paths_viewer.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        paths_group_layout.setContentsMargins(group_box_padding,group_box_padding,group_box_padding,group_box_padding)
         paths_group_layout.addWidget(paths_viewer)   
         pg_fm = paths_group.fontMetrics()
         pv_fm = paths_viewer.fontMetrics()
@@ -1006,6 +1033,9 @@ class PypeItFileView(TabManagerBaseTab):
         # Monitor the model for updates
         self.model.stateChanged.connect(self.update_from_model)
 
+        debugSizeStuff(self.config_panel,"Config Panel")
+        msgs.info(f"config panel flat: {self.config_panel.isFlat()}")
+  
     def update_from_model(self):
         """
         Signal handler that updates view when the underlying model changes.
@@ -1085,6 +1115,9 @@ class ObsLogView(TabManagerBaseTab):
         self.spectrograph.lineEdit().setPlaceholderText(self.tr("Select a spectrograph"))
         self.spectrograph.setInsertPolicy(QComboBox.NoInsert)
         self.spectrograph.setValidator(SpectrographValidator())
+        fm = self.fontMetrics()
+        group_box_padding=int(fm.height()/2)
+        spectrograph_layout.setContentsMargins(group_box_padding,group_box_padding,group_box_padding,group_box_padding)
         spectrograph_layout.addWidget(self.spectrograph)
         spectrograph_layout.setAlignment(self.spectrograph, Qt.AlignTop)
         spectrograph_box.setLayout(spectrograph_layout)
@@ -1105,15 +1138,16 @@ class ObsLogView(TabManagerBaseTab):
         self._paths_viewer = QListView(paths_group)
         self._paths_viewer.setModel(model.paths_model)
         paths_group_layout.addWidget(self._paths_viewer)
-        
+        paths_group_layout.setContentsMargins(group_box_padding,group_box_padding,group_box_padding,group_box_padding)
+
         # The initial height of the first row in the splitter. The raw data paths will be larger
         # so we use its size for the row.  We start with it displaying 2 paths
         initial_lines = 2
-        fm = self.fontMetrics()
         viewer_margins = self._paths_viewer.contentsMargins()
         path_group_margins = paths_group.contentsMargins()
         spec_paths_init_height = (fm.lineSpacing() + # Group titles
                                   path_group_margins.top() + path_group_margins.bottom() + # Groupbox margins
+                                  group_box_padding + group_box_padding + # Group box layout margins
                                   self.paths_editor.sizeHint().height() + # Path editor
                                   paths_group_layout.spacing() + # Gap between editor and viewer
                                   viewer_margins.top() + viewer_margins.bottom() + # viewer margins
@@ -1445,8 +1479,6 @@ class SetupGUIMainWindow(QWidget):
         self.model.filesAdded.connect(self.create_file_tabs)
         self.model.filesDeleted.connect(self.delete_tabs)
 
-        # Setup application/window icon TODO this doesn't work in windows. Mac???
-        self.setWindowIcon(QIcon(str(Path(__file__).parent / "images/window_icon.png")))
         self.setWindowTitle(self.tr("PypeIt Setup"))
 
         self.resize(1650,900)

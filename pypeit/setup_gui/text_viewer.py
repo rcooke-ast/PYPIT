@@ -10,7 +10,7 @@ from typing import Optional,Union
 
 from qtpy.QtWidgets import  QHBoxLayout, QVBoxLayout, QFileDialog, QWidget, QPlainTextEdit, QPushButton
 
-from qtpy.QtGui import QIcon, QFont,QTextCursor
+from qtpy.QtGui import QIcon, QFont,QTextCursor,QFontDatabase
 from qtpy.QtCore import Qt, Signal, QSettings, QEvent
 
 from pypeit import msgs
@@ -50,9 +50,11 @@ class TextViewerWindow(QWidget):
 
         # Get a fixed width font
         fixed_font = QFont()
-        fixed_font.setFamilies(["Monospace", "Courier"])
-        fixed_font.setFixedPitch(True)
+        fixed_font.setFamilies(["Monospace","Menlo","Courier New"])
         fixed_font.setPointSize(12)
+#        msgs.info("Available font families:")
+#        for family in QFontDatabase.families():
+#            msgs.info(family)
 
         # Create the log viewer widget
         self.textViewer=QPlainTextEdit(parent=self)

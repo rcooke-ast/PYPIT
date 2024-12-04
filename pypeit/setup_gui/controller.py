@@ -14,6 +14,7 @@ from pathlib import Path
 from functools import partial
 from contextlib import contextmanager
 from qtpy.QtCore import QCoreApplication, Signal, QMutex, QTimer
+from qtpy.QtGui import QIcon
 
 # TODO: datetime.UTC is not defined in python 3.10.  Remove this when we decide
 # to no longer support it.
@@ -63,12 +64,15 @@ class OperationThread(QThread):
         self._max_progress = None
         self._mutex = QMutex()
         self._main_window = main_controller.main_window
+        self.completed.connect(self._op_complete, type=Qt.QueuedConnection)
+
 
     def run(self):
         """Runs an operation in a background thread."""
         canceled = False
         exc_info = (None, None, None)
         try:
+            msgs.info("Running operation")
             self._operation.run()            
         except OpCanceledError:
             canceled=True
@@ -133,10 +137,10 @@ class OperationThread(QThread):
         Args:
             operation (MetadataOperation): The MetadataOperation to start in the background thread.
         """
+        msgs.info("Starting operation")
         self._operation = operation
         if operation.preRun():
             operation.progressMade.connect(self._op_progress, type=Qt.QueuedConnection)
-            self.completed.connect(self._op_complete, type=Qt.QueuedConnection)
             self.start()
 
 class MetadataOperation(QObject):
@@ -200,7 +204,7 @@ class MetadataOperation(QObject):
         if exc_info[0] is not None:
             traceback_string = "".join(traceback.format_exception(*exc_info))
             msgs.warn(f"Failed to {self.name.lower()}:\n" + traceback_string)
-            display_error(self._main_window.main_window, f"Failed to {self.name.lower()} {exc_info[0]}: {exc_info[1]}")
+            display_error(self._main_window, f"Failed to {self.name.lower()} {exc_info[0]}: {exc_info[1]}")
             self._model.reset()
         elif canceled:
             self._model.reset()
@@ -593,13 +597,6 @@ class PypeItObsLogController(QObject):
     def setSpectrograph(self, spectrograph_name):
         self._model.set_spectrograph(spectrograph_name)
 
-        if self._model.state != ModelState.NEW:
-            # Re-run setup with the new spectrograph
-            self._main_controller.run_setup()
-
-        else:
-            self._model.set_spectrograph(spectrograph_name)
-
     def removePaths(self, rows):
         # Remove paths in reverse order, so that indexes don't change when a row is removed
         for row in sorted(rows, reverse=True):
@@ -843,7 +840,7 @@ class SetupGUIController(QObject):
                 self.save_all()
             elif response == DialogResponses.CANCEL:
                 return
-
+        msgs.info("run_setup starting operation")
         self.operation_thread.startOperation(SetupOperation(self.model, self))
 
     def createNewPypeItFile(self):
@@ -886,11 +883,19 @@ class SetupGUIController(QObject):
         open_dialog = FileDialog.create_open_file_dialog(self.main_window, "Select PypeIt File", file_type=FileType("PypeIt input files",".pypeit"))
         result = open_dialog.show()
         if result != DialogResponses.CANCEL:
+            msgs.info("open_pypeit_file starting operation")
             self.operation_thread.startOperation(OpenFileOperation(self.model, open_dialog.selected_path, self))
 
 def start_gui(args):
     # Note QT expects the program name as arg 0
     app = QApplication(sys.argv)
+
+    # Setup application/window icon TODO this doesn't work in windows.
+    iconPath = Path(__file__).parent / "images/window_icon.png"
+    if not iconPath.exists():
+        msgs.info("Icon path does not exist")
+    else:
+        app.setWindowIcon(QIcon(str(iconPath)))
 
     gui = SetupGUIController(app, args.verbosity, args.spectrograph, args.root, args.extension)
     gui.start()

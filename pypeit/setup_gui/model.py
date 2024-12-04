@@ -1391,7 +1391,7 @@ class PypeItSetupGUIModel(QObject):
             pf_model.stateChanged.connect(self.stateChanged)
 
             self.pypeit_files[setup_name] = pf_model            
-
+            msgs.info("Adding empty file model in open_pypeit_file")
             self.filesAdded.emit([pf_model])
             self.stateChanged.emit()
 
@@ -1416,7 +1416,7 @@ class PypeItSetupGUIModel(QObject):
         pf_model.stateChanged.connect(self.stateChanged)
 
         self.pypeit_files[new_name] = pf_model            
-
+        msgs.info("Adding emtpy pypeit file in createEmptyPypeItFile")
         self.filesAdded.emit([pf_model])
         self.stateChanged.emit()
         return pf_model
@@ -1460,5 +1460,6 @@ class PypeItSetupGUIModel(QObject):
 
         msgs.info(f"Current files: {self.pypeit_files}")
         if len(config_names) > 0:
+            msgs.info("Adding pypeit files in createFilesForConfigs")
             self.filesAdded.emit(list(self.pypeit_files.values()))
 
