@@ -216,6 +216,11 @@ to re-run.  All steps up to and including the requested step will be
 run, although previous steps will be skipped if the calibration files
 are already present (these will be loaded, as appropriate).
 
+Users are strongly advised to use this script until you are happy
+with the calibration of this single step.  Once you are, you should
+re-run the full reduction with ``run_pypeit`` after first removing
+all previously generated calibration and science files.
+
 The script usage can be displayed by calling the script with the
 ``-h`` option:
 
