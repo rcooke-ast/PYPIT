@@ -726,7 +726,7 @@ class PypeIt:
 
         # Check
         if stop_at_step is not None and stop_at_step not in caliBrate.steps:
-            msgs.error(f"Requested stop_at_step={stop_at_step} is not a valid calibration step.")
+            msgs.error(f"Requested stop_at_step={stop_at_step} is not a valid calibration step.\n Allowed steps are: {caliBrate.steps}")
             
         # These need to be separate to accomodate COADD2D
         caliBrate.set_config(frames[0], det, self.par['calibrations'])
