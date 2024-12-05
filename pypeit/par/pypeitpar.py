@@ -365,13 +365,12 @@ class ProcessImagesPar(ParSet):
         dtypes['spat_flexure_maxlag'] = int
         descr['spat_flexure_maxlag'] = 'Maximum of possible spatial flexure correction, in pixels'
 
-        defaults['spat_flexure_sigdetect'] = 10.
+        defaults['spat_flexure_sigdetect'] = 5.
         dtypes['spat_flexure_sigdetect'] = [int, float]
-        descr['spat_flexure_sigdetect'] = 'Sigma threshold above fluctuations for the slit detection in ' \
-                                          'the spectral image, for which the spatial flexure is computed.  ' \
-                                          'A sobel filter is applied to the image and then collapsed along the ' \
-                                          'spectral direction. The sigma threshold is used to detect peaks in the '\
-                                          'collapsed image.'
+        descr['spat_flexure_sigdetect'] = ('Sigma threshold above fluctuations in the '
+                                           'Sobel-filtered significance image, used for '
+                                           'finding slit edges in the spectral image, '
+                                           'for which the spatial flexure is computed.')
 
         defaults['spat_flexure_vrange'] = None
         dtypes['spat_flexure_vrange'] = tuple

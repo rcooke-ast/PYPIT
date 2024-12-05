@@ -89,56 +89,58 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     _sciimg = sciimg if slitmask.shape == sciimg.shape \
                 else arc.resize_mask2arc(slitmask.shape, sciimg)
 
-    # create sobel images of both slitmask and the science image
-    sci_sobel, _ = trace.detect_slit_edges(_sciimg, bpm=bpm)
-    slits_sobel, _ = trace.detect_slit_edges(slitmask, bpm=bpm)
-    # collapse both sobel images along the spectral direction
-    sci_smash, _, _ = sigma_clipped_stats(sci_sobel, axis=0, mask=bpm)
-    # no need for sigma clipping for the slitmask
-    slits_smash = np.mean(slits_sobel, axis=0)
-    # remove nan values
-    sci_smash[np.isnan(sci_smash)] = 0
-    # invert the negative values
-    sci_smash[sci_smash < 0] *= -1
-    slits_smash[slits_smash < 0] *= -1
+    # mask (as much as possible) the objects on the slits to help the cross-correlation
+    # need to copy the bpm to avoid changing the input bpm
+    _bpm = np.zeros_like(_sciimg, dtype=int) if bpm is None else copy.deepcopy(bpm)
+    for i in range(slits.left_init.shape[1]):
+        left_edge = slits.left_init[:, i].astype(int)
+        right_edge = slits.right_init[:, i].astype(int)
+        for j in range(_sciimg.shape[0]):
+            # mask the region between the left and right edges leaving a margin of maxlag pixels
+            if left_edge[j]+maxlag < right_edge[j]-maxlag:
+                _bpm[j, left_edge[j]+maxlag:right_edge[j]-maxlag] = 1
 
-    # create a synthetic "spectrum" of both slitmask and the science image for cross-correlation
-    corr_sci = wvutils.get_xcorr_arc(sci_smash, cont_sub=True, percent_ceil=10., sigdetect=sigdetect, debug=debug)
-    corr_slits = wvutils.get_xcorr_arc(slits_smash, cont_sub=False, percent_ceil=None, input_thresh=1., debug=debug)
-
-    if np.all(corr_sci == 0) or np.all(corr_slits == 0):
-        msgs.warn('No peak detected in the collapsed sobel images. Assuming there is NO SPATIAL FLEXURE.'
-                  + msgs.newline() + 'If a flexure is expected, consider either changing the '
-                                     '"spat_flexure_sigdetect" parameter, or use the manual flexure correction.')
-        return 0.
-    # run x-cross correlation
-    lags, xcorr = utils.cross_correlate(corr_sci, corr_slits, maxlag)
-    xcorr_denom = np.sqrt(np.sum(corr_sci*corr_sci)*np.sum(corr_slits*corr_slits))
-    xcorr_norm = xcorr / xcorr_denom
+    # # create sobel images of both slitmask and the science image
+    sci_sobel, sci_edges = trace.detect_slit_edges(_sciimg, bpm=_bpm, sigdetect=sigdetect)
+    slits_sobel, slits_edges = trace.detect_slit_edges(slitmask, bpm=bpm, sigdetect=1.)
+    corr = scipy.signal.fftconvolve(sci_edges, np.fliplr(slits_edges), mode='same', axes=1)
+    xcorr = np.sum(corr, axis=0)
+    lags = scipy.signal.correlation_lags(sci_edges.shape[1], slits_edges.shape[1], mode='same')
+    lag0 = np.where(lags == 0)[0][0]
+    xcorr_max = xcorr[lag0 - maxlag:lag0 + maxlag]
+    lags_max = lags[lag0 - maxlag:lag0 + maxlag]
 
     # detect the highest peak in the cross-correlation
-    _, _, pix_max, _, _, _, _, _ = arc.detect_lines(xcorr_norm, cont_subtract=False, input_thresh=0.,
-                                                    nfind=1, debug=debug)
+    _, _, pix_max, _, _, _, _, _ = arc.detect_lines(xcorr_max, cont_subtract=False, input_thresh=0., nfind=1, debug=debug)
     # No peak? -- e.g. data fills the entire detector
-    if len(pix_max) == 0:
+    if (len(pix_max) == 0) or pix_max[0] == -999.0:
         msgs.warn('No peak found in the x-correlation between the traced slits and the science/calib image.'
                   '  Assuming there is NO SPATIAL FLEXURE.'+msgs.newline() + 'If a flexure is expected, '
                   'consider either changing the maximum lag for the cross-correlation, '
                   'or the "spat_flexure_sigdetect" parameter, or use the manual flexure correction.')
 
         return 0.
-    lag0 = np.where(lags == 0)[0][0]
-    shift = round(pix_max[0] - lag0, 3)
+
+    lag0_max = np.where(lags_max == 0)[0][0]
+    shift = round(pix_max[0] - lag0_max, 3)
     msgs.info('Spatial flexure measured: {}'.format(shift))
 
-    if debug:
-        # 1D plot
-        xvals = np.arange(corr_slits.size)
-        plt.figure(figsize=(9, 8))
-        scale = np.nanmax(corr_slits) / np.nanmax(corr_sci)
-        plt.suptitle(f'Shift={shift:.1f} pixels', fontsize=18)
-        plt.plot(xvals, corr_slits, 'k', label='slitmask edge peaks')
-        plt.plot(xvals, np.roll(scale*corr_sci, -int(shift)), '--r', label='shifted science edge peaks')
+    if True:
+        # 1D plot of the cross-correlation
+        plt.figure(figsize=(10, 6))
+        plt.minorticks_on()
+        plt.tick_params(axis='both', direction='in', top=True, right=True, which='both')
+        # plot xcorr_max but add a buffer of 20 pixels on each side
+        pad = 20
+        _xcorr_max = xcorr[lag0 - (maxlag+pad):lag0 + (maxlag+pad)]
+        _lags_max = lags[lag0 - (maxlag+pad):lag0 + (maxlag+pad)]
+        plt.plot(_lags_max, _xcorr_max, 'k-', lw=1)
+        plt.axvline(shift, color='r', linestyle='--', label=f'Measured shift = {shift:.1f} pixels')
+        plt.axvline(maxlag, color='g', linestyle='--', label='Max lag')
+        plt.axvline(-maxlag, color='g', linestyle='--')
+        plt.xlabel('Lag (pixels)')
+        plt.ylabel('Cross-correlation')
+        plt.title('Spatial Flexure Cross-correlation')
         plt.legend()
         plt.tight_layout()
         plt.show()
