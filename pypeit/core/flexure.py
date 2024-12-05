@@ -125,7 +125,7 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     shift = round(pix_max[0] - lag0_max, 3)
     msgs.info('Spatial flexure measured: {}'.format(shift))
 
-    if True:
+    if debug:
         # 1D plot of the cross-correlation
         plt.figure(figsize=(10, 6))
         plt.minorticks_on()
