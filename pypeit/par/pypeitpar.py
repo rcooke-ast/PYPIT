@@ -367,10 +367,10 @@ class ProcessImagesPar(ParSet):
 
         defaults['spat_flexure_sigdetect'] = 5.
         dtypes['spat_flexure_sigdetect'] = [int, float]
-        descr['spat_flexure_sigdetect'] = ('Sigma threshold above fluctuations in the '
-                                           'Sobel-filtered significance image, used for '
-                                           'finding slit edges in the spectral image, '
-                                           'for which the spatial flexure is computed.')
+        descr['spat_flexure_sigdetect'] = 'Sigma threshold above fluctuations in the '  \
+                                          'Sobel-filtered significance image, used for '  \
+                                          'finding slit edges in the spectral image, '  \
+                                          'for which the spatial flexure is computed.'
 
         defaults['spat_flexure_vrange'] = None
         dtypes['spat_flexure_vrange'] = tuple
