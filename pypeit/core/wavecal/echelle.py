@@ -166,9 +166,10 @@ def predict_ech_arcspec(angle_fits_file, composite_arc_file, echangle, xdangle, 
         if indx < 0 or indx >= angle_fits_params['norders']:
             continue
         igood = gpm_composite[:, indx]
-        arcspec_guess[:, iord] = interpolate.interp1d(wave_composite[igood, indx], arc_composite[igood, indx],
-                                                      kind='cubic', bounds_error=False,
-                                                      fill_value=0.)(wave_soln_guess[:, iord])
+        arcspec_guess[:, iord] = interpolate.interp1d(
+            wave_composite[igood, indx], arc_composite[igood, indx],
+            kind='cubic', bounds_error=False,
+            fill_value=0.)(wave_soln_guess[:, iord])
         # sometimes wave_soln_guess[:, iord] is wrong and therefore is outside the range of
         # wave_composite[igood, indx] and the corresponding arcspec_guess[:, iord] is all zeros
         # here we try to deal with this case, by using wave_composite[igood, indx] but we need make some padding
@@ -232,6 +233,12 @@ def identify_ech_orders(arcspec, echangle, xdangle, dispname,
 
     """
     nspec, norders = arcspec.shape
+
+    fig = plt.figure(figsize=(12, 8))
+    plt.clf()
+    ax = plt.gca()
+    ax.plot(arcspec[:,10])
+    plt.show()
 
     # Predict the echelle order coverage and wavelength solution
     order_vec_guess, wave_soln_guess_pad, arcspec_guess_pad = predict_ech_arcspec(
