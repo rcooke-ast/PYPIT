@@ -561,6 +561,16 @@ class PypeItMetadataView(QTableView):
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
 
+        # Add any actions with shortcuts
+        for action in self._controller.getActions(self):
+            if isinstance(action, list):
+                # Iterate through sublist the first item is a text name of the submenu, followed by actions
+                for subaction in action[1:]:
+                    if subaction.shortcut() is not None:
+                        self.addAction(subaction)
+            elif action.shortcut() is not None:
+                self.addAction(action)
+
         self.setMouseTracking(True)
 
     def mouseMoveEvent(self, event : QMouseEvent):
