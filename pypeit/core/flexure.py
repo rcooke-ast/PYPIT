@@ -82,7 +82,6 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
 
     """
     msgs.info("Measuring spatial flexure")
-    # TODO: should we use initial or tweaked slits?
     # Mask -- Includes short slits and those excluded by the user (e.g. ['rdx']['slitspatnum'])
     slitmask = slits.slit_img(initial=True, exclude_flag=slits.bitmask.exclude_for_flexure)
 
@@ -92,9 +91,9 @@ def spat_flexure_shift(sciimg, slits, bpm=None, maxlag=20, sigdetect=10., debug=
     # mask (as much as possible) the objects on the slits to help the cross-correlation
     # need to copy the bpm to avoid changing the input bpm
     _bpm = np.zeros_like(_sciimg, dtype=int) if bpm is None else copy.deepcopy(bpm)
-    for i in range(slits.left_init.shape[1]):
-        left_edge = slits.left_init[:, i].astype(int)
-        right_edge = slits.right_init[:, i].astype(int)
+    for i in range(slits.nslits):
+        left_edge = np.round(slits.left_init[:, i]).astype(int)
+        right_edge = np.round(slits.right_init[:, i]).astype(int)
         for j in range(_sciimg.shape[0]):
             # mask the region between the left and right edges leaving a margin of maxlag pixels
             if left_edge[j]+maxlag < right_edge[j]-maxlag:
