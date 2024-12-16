@@ -797,6 +797,13 @@ class BuildWaveTilts:
                                        self.spat_order[slit_idx], self.spec_order[slit_idx],
                                        slit_idx,
                                        doqa=doqa, show_QA=show)
+            # Flag slits with high number of rejected pixels (>95%)
+            # TODO: Is 95% the right threshold?
+            _gpm = self.all_fit_dict[slit_idx]['pypeitFit'].bool_gpm
+            if np.sum(np.logical_not(_gpm)) > 0.95 * _gpm.size:
+                msgs.warn(f'Large number of pixels rejected in the fit. This slit/order will not be reduced!')
+                self.slits.mask[slit_idx] = self.slits.bitmask.turn_on(self.slits.mask[slit_idx], 'BADTILTCALIB')
+                continue
             self.coeffs[:self.spec_order[slit_idx]+1,:self.spat_order[slit_idx]+1,slit_idx] = coeff_out
 
             # TODO: Need a way to assess the success of fit_tilts and
@@ -807,6 +814,12 @@ class BuildWaveTilts:
             # images, trace images, and pixelflats etc.
             self.tilts = tracewave.fit2tilts(self.slitmask_science.shape, coeff_out,
                                              self.par['func2d'])
+            # Check that the tilts image has values that span a reasonable range
+            # TODO: Is this the right threshold?
+            if np.nanmax(self.tilts) - np.nanmin(self.tilts) < 0.8:
+                msgs.warn('Tilts image fit not good. This slit/order will not be reduced!')
+                self.slits.mask[slit_idx] = self.slits.bitmask.turn_on(self.slits.mask[slit_idx], 'BADTILTCALIB')
+                continue
             # Save to final image
             thismask_science = self.slitmask_science == slit_spat
             self.final_tilts[thismask_science] = self.tilts[thismask_science]
