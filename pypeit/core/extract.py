@@ -483,6 +483,7 @@ def extract_boxcar(imgminsky, ivar, mask, waveimg, skyimg, spec, fwhmimg=None, f
     spec.BOX_NPIX = pixtot-pixmsk
 
 
+
 def extract_hist_spectrum(waveimg, frame, gpm=None, bins=1000):
     """
     Generate a quick spectrum using the nearest grid point (histogram) algorithm.
