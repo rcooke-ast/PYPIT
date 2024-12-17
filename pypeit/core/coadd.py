@@ -688,12 +688,12 @@ def interp_spec(wave_new, waves, fluxes, ivars, gpms, log10_blaze_function=None,
             for ii in range(nexp):
                 fluxes_inter[:,ii], ivars_inter[:,ii], gpms_inter[:,ii], log10_blazes_inter[:,ii] \
                     = interp_oned(wave_new, waves[:,ii], fluxes[:,ii], ivars[:,ii], gpms[:,ii],
-                                  log10_blaze_function = log10_blaze_function[:, ii], sensfunc=sensfunc, kind=kind)
+                                  log10_blaze_function=log10_blaze_function[:, ii], sensfunc=sensfunc, kind=kind)
         else:
             for ii in range(nexp):
                 fluxes_inter[:,ii], ivars_inter[:,ii], gpms_inter[:,ii], _ \
                     = interp_oned(wave_new, waves[:,ii], fluxes[:,ii], ivars[:,ii], gpms[:,ii], sensfunc=sensfunc, kind=kind)
-            log10_blazes_inter=None
+            log10_blazes_inter = None
 
         return fluxes_inter, ivars_inter, gpms_inter, log10_blazes_inter
 
@@ -882,7 +882,7 @@ def sn_weights(fluxes, ivars, gpms, sn_smooth_npix=None, weight_method='auto', v
 
     # Check if relative weights input
     if verbose:
-        msgs.info('Computing weights with weight_method=%s'.format(weight_method))
+        msgs.info('Computing weights with weight_method={:s}'.format(weight_method))
 
     weights = []
 
@@ -1859,20 +1859,15 @@ def spec_reject_comb(wave_grid, wave_grid_mid, waves_list, fluxes_list, ivars_li
         # Compute the stack
         wave_stack, flux_stack, ivar_stack, gpm_stack, nused = compute_stack(
             wave_grid, waves_list, fluxes_list, ivars_list, utils.array_to_explist(this_gpms, nspec_list=nspec_list), weights_list)
-        # Interpolate the individual spectra onto the wavelength grid of the stack. Use wave_grid_mid for this
-        # since it has no masked values
+        # Interpolate the stack onto the wavelength grids of the individual spectra. This will be used to perform 
+        # the rejection of pixels in the individual spectra.
         flux_stack_nat, ivar_stack_nat, gpm_stack_nat, _ = interp_spec(
             waves, wave_grid_mid, flux_stack, ivar_stack, gpm_stack)
-        ## TESTING
-        #nused_stack_nat, _, _ = interp_spec(
-        #    waves, wave_grid_mid, nused, ivar_stack, mask_stack)
-        #embed()
-        rejivars, sigma_corrs, outchi, chigpm = update_errors(fluxes, ivars, this_gpms,
-                                                               flux_stack_nat,  ivar_stack_nat, gpm_stack_nat, sn_clip=sn_clip)
-        this_gpms, qdone = pydl.djs_reject(fluxes, flux_stack_nat, outmask=this_gpms,inmask=gpms, invvar=rejivars,
+        rejivars, sigma_corrs, outchi, chigpm = update_errors(
+            fluxes, ivars, this_gpms, flux_stack_nat,  ivar_stack_nat, gpm_stack_nat, sn_clip=sn_clip)
+        this_gpms, qdone = pydl.djs_reject(fluxes, flux_stack_nat, outmask=this_gpms, inmask=gpms, invvar=rejivars,
                                           lower=lower,upper=upper, maxrej=maxrej, sticky=False)
         iter += 1
-
 
     if (iter == maxiter_reject) & (maxiter_reject != 0):
         msgs.warn('Maximum number of iterations maxiter={:}'.format(maxiter_reject) + ' reached in spec_reject_comb')
@@ -2406,7 +2401,7 @@ def ech_combspec(waves_arr_setup, fluxes_arr_setup, ivars_arr_setup, gpms_arr_se
         nbests=None, which will just use one fourth of the orders for a given
         setup.
     wave_method : str, optional
-        method for generating new wavelength grid with get_wave_grid. Deafult is
+        method for generating new wavelength grid with get_wave_grid. Default is
         'log10' which creates a uniformly space grid in log10(lambda), which is
         typically the best for echelle spectrographs
     dwave : float, optional
@@ -2562,6 +2557,8 @@ def ech_combspec(waves_arr_setup, fluxes_arr_setup, ivars_arr_setup, gpms_arr_se
     # data shape
     nsetups=len(waves_arr_setup)
 
+    msgs.info(f'Number of setups to cycle through is: {nsetups}')
+
     if setup_ids is None:
         setup_ids = list(string.ascii_uppercase[:nsetups])
 
@@ -2610,7 +2607,7 @@ def ech_combspec(waves_arr_setup, fluxes_arr_setup, ivars_arr_setup, gpms_arr_se
                                             wave_grid_min=wave_grid_min,
                                             wave_grid_max=wave_grid_max, dwave=dwave, dv=dv,
                                             dloglam=dloglam, spec_samp_fact=spec_samp_fact)
-
+    msgs.info(f'The shape of the giant wave grid here is: {np.shape(wave_grid)}')
     # Evaluate the sn_weights. This is done once at the beginning
     weights = []
     rms_sn_setup_list = []
@@ -2738,14 +2735,28 @@ def ech_combspec(waves_arr_setup, fluxes_arr_setup, ivars_arr_setup, gpms_arr_se
         for iord in range(norders[isetup]):
             ind_start = iord*nexps[isetup]
             ind_end = (iord+1)*nexps[isetup]
+            wave_grid_ord = waves_setup_list[isetup][ind_start]
+            # if the wavelength grid is non-monotonic, resample onto a loglam grid
+            wave_grid_diff_ord = np.diff(wave_grid_ord)
+            if np.any(wave_grid_diff_ord < 0):
+                msgs.warn(f'This order ({iord}) has a non-monotonic wavelength solution. Resampling now: ')
+                wave_grid_ord = np.linspace(np.min(wave_grid_ord), np.max(wave_grid_ord), len(wave_grid_ord))
+                wave_grid_diff_ord = np.diff(wave_grid_ord)
+
+            wave_grid_diff_ord = np.append(wave_grid_diff_ord, wave_grid_diff_ord[-1])
+            wave_grid_mid_ord = wave_grid_ord + wave_grid_diff_ord / 2.0
+            # removing the last bin since the midpoint now falls outside of wave_grid rightmost bin. This matches
+            # the convention in wavegrid above
+            wave_grid_mid_ord = wave_grid_mid_ord[:-1]
+            #trim off first and last pixel in case of edge effects in wavelength calibration
             wave_order_stack_iord, flux_order_stack_iord, ivar_order_stack_iord, gpm_order_stack_iord, \
                 nused_order_stack_iord, outgpms_order_stack_iord = spec_reject_comb(
-                wave_grid, wave_grid_mid, waves_setup_list[isetup][ind_start:ind_end],
+                wave_grid_ord, wave_grid_mid_ord, waves_setup_list[isetup][ind_start:ind_end],
                 fluxes_scale_setup_list[isetup][ind_start:ind_end], ivars_scale_setup_list[isetup][ind_start:ind_end],
                 gpms_setup_list[isetup][ind_start:ind_end], weights_setup_list[isetup][ind_start:ind_end],
                 sn_clip=sn_clip, lower=lower, upper=upper, maxrej=maxrej, maxiter_reject=maxiter_reject, debug=debug_order_stack,
                 title='order_stacks')
-            waves_order_stack.append(wave_order_stack_iord)
+            waves_order_stack.append(wave_grid_mid_ord)
             fluxes_order_stack.append(flux_order_stack_iord)
             ivars_order_stack.append(ivar_order_stack_iord)
             gpms_order_stack.append(gpm_order_stack_iord)

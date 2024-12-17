@@ -134,6 +134,8 @@ class KeckKCWIKCRMSpectrograph(spectrograph.Spectrograph):
         par['calibrations']['wavelengths']['lamps'] = ['FeI', 'ArI', 'ArII']
         if self.get_meta_value(headarr, 'dispname') == 'BH2':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'keck_kcwi_BH2.fits'
+        elif self.get_meta_value(headarr, 'dispname') == 'BH3':
+            par['calibrations']['wavelengths']['reid_arxiv'] = 'keck_kcwi_BH3.fits'
         elif self.get_meta_value(headarr, 'dispname') == 'BM':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'keck_kcwi_BM.fits'
         elif self.get_meta_value(headarr, 'dispname') == 'BL':
@@ -718,7 +720,7 @@ class KeckKCWIKCRMSpectrograph(spectrograph.Spectrograph):
             when constructing a histogram of the spec2d files. The elements
             are :math:`(x,y,\lambda)`.
         """
-        xbins = np.arange(1 + 24) - 24/2 - 0.5
+        xbins = np.arange(1 + 24) - 0.5
         ybins = np.linspace(np.min(minmax[:, 0]), np.max(minmax[:, 1]), 1+slitlength) - 0.5
         spec_bins = np.arange(1+num_wave) - 0.5
         return xbins, ybins, spec_bins
@@ -825,7 +827,7 @@ class KeckKCWISpectrograph(KeckKCWIKCRMSpectrograph):
     camera = 'KCWI'
     url = 'https://www2.keck.hawaii.edu/inst/kcwi/'
     header_name = 'KCWI'
-    comment = 'Supported setups: BL, BM, BH2; see :doc:`keck_kcwi`'
+    comment = 'Supported setups: BL, BM, BH2, BH3; see :doc:`keck_kcwi`'
 
     def get_detector_par(self, det, hdu=None):
         """
@@ -860,7 +862,7 @@ class KeckKCWISpectrograph(KeckKCWIKCRMSpectrograph):
             # Some properties of the image
             binning = self.compound_meta(self.get_headarr(hdu), "binning")
             numamps = hdu[0].header['NVIDINP']
-            specflip = True if hdu[0].header['AMPID1'] == 2 else False
+            specflip = False if hdu[0].header['AMPMODE'] == 'ALL' else True
             gainmul, gainarr = hdu[0].header['GAINMUL'], np.zeros(numamps)
             ronarr = np.zeros(numamps)  # Set this to zero (determine the readout noise from the overscan regions)
 #            dsecarr = np.array(['']*numamps)

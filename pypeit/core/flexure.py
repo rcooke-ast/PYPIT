@@ -17,6 +17,7 @@ import matplotlib
 from astropy import stats
 from astropy import units
 from astropy.io import ascii
+from astropy.table import Table
 import scipy.signal
 import scipy.optimize as opt
 from scipy import interpolate
