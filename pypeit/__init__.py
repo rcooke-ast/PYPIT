@@ -34,10 +34,10 @@ try:
     # There appears to be a bug in getpass in windows systems where the pwd
     # module doesn't load
     import getpass
-except ModuleNotFoundError:
-    pypeit_user = os.getlogin()
-else:
     pypeit_user = getpass.getuser()
+except ModuleNotFoundError:
+    # TODO: Why don't we just always use this?
+    pypeit_user = os.getlogin()
 
 # Import and instantiate the logger
 # NOTE: This **MUST** be defined after __version__; i.e., pypmsgs imports pypeit
