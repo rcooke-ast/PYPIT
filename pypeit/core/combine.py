@@ -230,6 +230,8 @@ def broadcast_weights(weights, shape):
                   image
                 - (nimgs, nspec, nspat) -- weights already have the
                   shape of the image stack and are simply returned
+                - (nimgs, nspec, nspat1, nspat2) -- for use with cubes. weights
+                  already have the shape of the cube stack and are simply returned
         shape (tuple):
             Shape of the image stacks for weighted coadding. This is either (nimgs, nspec) for 1d extracted spectra or
             (nimgs, nspec, nspat) for 2d spectrum images
@@ -258,7 +260,7 @@ def broadcast_weights(weights, shape):
             weights_stack = weights
         elif len(shape) == 3:
             weights_stack = np.einsum('ij,k->ijk', weights, np.ones(shape[2]))
-    elif weights.ndim == 3:
+    elif (weights.ndim == 3) | (weights.ndim == 4):
         # Full image stack of weights
         if weights.shape != shape:
             msgs.error('The shape of weights does not match the shape of the image stack')

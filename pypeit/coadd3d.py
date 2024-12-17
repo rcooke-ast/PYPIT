@@ -17,7 +17,7 @@ import numpy as np
 from pypeit import msgs
 from pypeit import alignframe, datamodel, flatfield, io, sensfunc, spec2dobj, utils
 from pypeit.core.flexure import calculate_image_phase
-from pypeit.core import datacube, extract, flux_calib, parse
+from pypeit.core import datacube, extract, flux_calib, parse, combine 
 from pypeit.spectrographs.util import load_spectrograph
 
 from IPython import embed
@@ -416,6 +416,7 @@ class CoAdd3D:
             spectrograph (:obj:`str`, :class:`~pypeit.spectrographs.spectrograph.Spectrograph`, optional):
                 The name or instance of the spectrograph used to obtain the data.
                 If None, this is pulled from the file header.
+                TODO: Why is this an argument?
             det (:obj:`int`_, optional):
                 Detector index
             overwrite (:obj:`bool`, optional):
@@ -1168,7 +1169,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             # scaled by the exposure time and the wavelength sampling
             sens_sort = 1.0/(exptime * dwav_sort)  # If no sensitivity function is provided
             if self.fluxcal:
-                msgs.info("Calculating the sensitivity function")
+                msgs.info("Loading the sensitivity function")
                 # Load the sensitivity function
                 sens = sensfunc.SensFunc.from_file(self.sensfile[ff], chk_version=self.par['rdx']['chk_version'])
                 # Interpolate the sensitivity function onto the wavelength grid of the data
@@ -1200,6 +1201,9 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             # Get the slit image and then unset pixels in the slit image that are bad
             slitid_img_gpm = slitid_img * onslit_gpm.astype(int)
 
+            # TODO JFH I don't agree with this block of code being here in the load method. Load should load, 
+            # not perform other operations (like cube generation).  
+            
             # If individual frames are to be output without aligning them,
             # there's no need to store information, just make the cubes now
             if not self.combine and not self.align:
@@ -1221,7 +1225,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                 # Make the datacube
                 if self.method in ['subpixel', 'ngp']:
                     # Generate the datacube
-                    flxcube, sigcube, bpmcube, wave = \
+                    flxcube, sigcube, bpmcube, normcube, wave = \
                         datacube.generate_cube_subpixel(self.all_wcs[ff], bins, sciImg, ivar, waveimg, slitid_img_gpm, wghts,
                                                         self.all_wcs[ff], spec2DObj.tilts, slits, alignSplines, darcorr,
                                                         self.ra_offsets[ff], self.dec_offsets[ff],
@@ -1239,8 +1243,10 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                         hdr['FLUXUNIT'] = (1, "Flux units -- counts/s/Angstrom/arcsec^2")
                     # Write out the datacube
                     msgs.info("Saving datacube as: {0:s}".format(outfile))
-                    final_cube = DataCube(flxcube, sigcube, bpmcube, wave, self.specname, self.blaze_wave, self.blaze_spec,
-                                          sensfunc=None, fluxed=self.fluxcal)
+                    final_cube = DataCube(
+                        flxcube, sigcube, bpmcube.astype(np.uint8), 
+                        wave, self.specname, self.blaze_wave, self.blaze_spec,
+                        sensfunc=None, fluxed=self.fluxcal)
                     final_cube.to_file(outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
                 # No need to proceed and store arrays - we are writing individual datacubes
                 continue
@@ -1429,7 +1435,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             if self.combine:
                 outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
                 # Generate the datacube
-                flxcube, sigcube, bpmcube, wave = \
+                flxcube, sigcube, bpmcube, normcube, wave = \
                     datacube.generate_cube_subpixel(cube_wcs, vox_edges, self.all_sci, self.all_ivar, self.all_wave,
                                                     self.all_slitid, self.all_wghts, self.all_wcs,
                                                     self.all_tilts, self.all_slits, self.all_align, self.all_dar,
@@ -1448,7 +1454,8 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                     hdr['FLUXUNIT'] = (1, "Flux units -- counts/s/Angstrom/arcsec^2")
                 # Write out the datacube
                 msgs.info("Saving datacube as: {0:s}".format(outfile))
-                final_cube = DataCube(flxcube, sigcube, bpmcube, wave, self.specname, self.blaze_wave, self.blaze_spec,
+                final_cube = DataCube(flxcube, sigcube, bpmcube.astype(np.uint8), 
+                                      wave, self.specname, self.blaze_wave, self.blaze_spec,
                                       sensfunc=sensfunc, fluxed=self.fluxcal)
                 # Note, we only store in the primary header the first spec2d file
                 final_cube.to_file(outfile, primary_hdr=self.all_header[0], hdr=hdr, overwrite=self.overwrite)
@@ -1456,18 +1463,32 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                 for ff in range(self.numfiles):
                     outfile = datacube.get_output_filename("", self.cubepar['output_filename'], False, ff)
                     # Generate the datacube
-                    flxcube, sigcube, bpmcube, wave = \
+                    flxcube, sigcube, bpmcube, normcube, wave = \
                         datacube.generate_cube_subpixel(cube_wcs, vox_edges,
                                                         self.all_sci[ff], self.all_ivar[ff], self.all_wave[ff],
                                                         self.all_slitid[ff], self.all_wghts[ff], self.all_wcs[ff],
                                                         self.all_tilts[ff], self.all_slits[ff], self.all_align[ff], self.all_dar[ff],
                                                         self.ra_offsets[ff], self.dec_offsets[ff],
-                                                        overwrite=self.overwrite, whitelight_range=wl_wvrng,
-                                                        outfile=outfile, spec_subpixel=self.spec_subpixel,
+                                                        spec_subpixel=self.spec_subpixel,
                                                         spat_subpixel=self.spat_subpixel,
                                                         slice_subpixel=self.slice_subpixel,
                                                         skip_subpix_weights=self.skip_subpix_weights,
                                                         correct_dar=self.correct_dar)
+                      
+                    if ff == 0: 
+                        stack_shape = (self.numfiles,) + flxcube.shape
+                        flxcube_stack = np.zeros(stack_shape)
+                        varcube_stack = np.zeros(stack_shape)
+                        bpmcube_stack = np.zeros(stack_shape)
+                        normcube_stack = np.zeros(stack_shape)
+                        # TODO Add proper weights
+                        weightcube_stack = np.ones(stack_shape)
+
+                    flxcube_stack[ff, :] = flxcube
+                    varcube_stack[ff, :] = np.square(sigcube)
+                    bpmcube_stack[ff, :] = bpmcube
+                    normcube_stack[ff, :] = normcube
+                        
                     # Prepare the header
                     hdr = cube_wcs.to_header()
                     if self.fluxcal:
@@ -1476,6 +1497,31 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                         hdr['FLUXUNIT'] = (1, "Flux units -- counts/s/Angstrom/arcsec^2")
                     # Write out the datacube
                     msgs.info("Saving datacube as: {0:s}".format(outfile))
-                    final_cube = DataCube(flxcube, sigcube, bpmcube, wave, self.specname, self.blaze_wave, self.blaze_spec,
+                    final_cube = DataCube(flxcube, sigcube, bpmcube.astype(np.uint8), wave, self.specname, self.blaze_wave, self.blaze_spec,
                                           sensfunc=sensfunc, fluxed=self.fluxcal)
                     final_cube.to_file(outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
+                    # TODO fix this transpose issue
+                    datacube.make_whitelight(cube_wcs, flxcube.T, bpmcube.T, wave, outfile, 
+                                             whitelight_range=wl_wvrng, overwrite=self.overwrite)
+   
+                    
+
+            sigrej = 3.0
+            maxiters = 10                
+            sci_list_out, var_list_out, gpm, nused = combine.weighted_combine(
+                weightcube_stack, [flxcube_stack], [varcube_stack],np.logical_not(bpmcube_stack), sigma_clip=True,
+                               sigma_clip_stack=[flxcube_stack], sigrej=sigrej, maxiters=maxiters)
+            combined_cube = sci_list_out[0]
+            combined_sigma = np.sqrt(var_list_out[0])
+            combined_bpm = np.logical_not(gpm)
+            combined_outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
+            msgs.info("Saving combined datacube as: {0:s}".format(combined_outfile))
+            final_combined_cube = DataCube(combined_cube, combined_sigma, combined_bpm.astype(np.uint8), wave, self.specname, self.blaze_wave, self.blaze_spec,
+                                          sensfunc=sensfunc, fluxed=self.fluxcal)
+            final_combined_cube.to_file(combined_outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
+            # Make combined white light image 
+            # TODO fix this transpose issue
+            datacube.make_whitelight(cube_wcs, combined_cube.T, combined_bpm.T, wave, combined_outfile, 
+                                             whitelight_range=wl_wvrng, overwrite=self.overwrite)
+   
+

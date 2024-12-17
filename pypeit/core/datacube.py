@@ -595,6 +595,51 @@ def get_whitelight_range(wavemin, wavemax, wl_range):
     msgs.info("The white light images will cover the wavelength range: {0:.2f}A - {1:.2f}A".format(wlrng[0], wlrng[1]))
     return wlrng
 
+def make_whitelight(output_wcs, flxcube, bpmcube, wave, outfile, whitelight_range=None, overwrite=False):
+    """
+    Generate a white light image using an input cube and write to a file. 
+
+    Parameters
+    ----------
+    output_wcs (`astropy.wcs.WCS`_):
+        Output world coordinate system.    
+    whitelight_range (None, list, optional):
+        A two element list that specifies the minimum and maximum
+        wavelengths (in Angstroms) to use when constructing the white light
+        image (format is: [min_wave, max_wave]). If None, the cube will be
+        collapsed over the full wavelength range. If a list is provided an
+        either element of the list is None, then the minimum/maximum
+        wavelength range of that element will be set by the minimum/maximum
+        wavelength of all_wave.
+    flxcube (`numpy.ndarray`_):
+        3D datacube (the final element contains the wavelength dimension).
+    bpmcube (`numpy.ndarray`_, bool):
+        3D bad pixel mask cube (the final element contains the wavelength dimension).
+        A value of True indicates a bad pixel.
+    wave (`numpy.ndarray`_):
+        A 1D array containing the wavelength at each spectral coordinate of the datacube. The
+        shape of the wavelength array is (nwave,).        
+    """
+    
+    whitelight_wcs = output_wcs.celestial
+    # Check if the user requested a white light image
+    if whitelight_range is not None:
+        # Grab the WCS of the white light image
+        # Determine the wavelength range of the whitelight image
+        _whitelight_range = (wave[0] if whitelight_range[0] is None else whitelight_range[0],
+                             wave[-1] if whitelight_range[1] is None else whitelight_range[1])
+    else: 
+        _whitelight_range = (wave[0], wave[-1])
+
+    msgs.info("White light image covers the wavelength range {0:.2f} A - {1:.2f} A".format(
+        _whitelight_range[0], _whitelight_range[1]))
+    # Get the output filename for the white light image
+    out_whitelight = get_output_whitelight_filename(outfile)
+    whitelight_img = make_whitelight_fromcube(
+        flxcube, bpmcube, wave=wave, wavemin=_whitelight_range[0], wavemax=_whitelight_range[1])
+    msgs.info("Saving white light image as: {0:s}".format(out_whitelight))
+    img_hdu = fits.PrimaryHDU(whitelight_img.T, header=whitelight_wcs.to_header())
+    img_hdu.writeto(out_whitelight, overwrite=overwrite)    
 
 def make_whitelight_fromcube(cube, bpmcube, wave=None, wavemin=None, wavemax=None):
     """
@@ -603,9 +648,9 @@ def make_whitelight_fromcube(cube, bpmcube, wave=None, wavemin=None, wavemax=Non
     Args:
         cube (`numpy.ndarray`_):
             3D datacube (the final element contains the wavelength dimension)
-        bpmcube (`numpy.ndarray`_):
+        bpmcube (`numpy.ndarray`_, bool):
             3D bad pixel mask cube (the final element contains the wavelength dimension).
-            A value of 1 indicates a bad pixel.
+            A value of True indicates a bad pixel.
         wave (`numpy.ndarray`_, optional):
             1D wavelength array. Only required if wavemin or wavemax are not
             None.
@@ -1336,7 +1381,7 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     ivar_stack = np.zeros((numwav, numframes))
     for ff in range(numframes):
         msgs.info("Extracting spectrum of highest S/N detection from frame {0:d}/{1:d}".format(ff + 1, numframes))
-        flxcube, sigcube, bpmcube, wave = \
+        flxcube, sigcube, bpmcube, normcube, wave = \
             generate_cube_subpixel(whitelightWCS, bins, _sciImg[ff], _ivarImg[ff], _waveImg[ff],
                                    _slitidImg[ff], np.ones(_sciImg[ff].shape), _all_wcs[ff],
                                    _all_tilts[ff], _all_slits[ff], _all_align[ff], _all_dar[ff],
@@ -1454,7 +1499,7 @@ def generate_image_subpixel(image_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
     # Generate the white light images
     if combine:
         # Subpixellate
-        img, _, _ = subpixellate(image_wcs, bins, _sciImg, _ivarImg, _waveImg, _slitid_img_gpm, _wghtImg,
+        img, _, _, _ = subpixellate(image_wcs, bins, _sciImg, _ivarImg, _waveImg, _slitid_img_gpm, _wghtImg,
                                  _all_wcs, _tilts, _slits, _astrom_trans, _all_dar, _ra_offset, _dec_offset,
                                  spec_subpixel=spec_subpixel, spat_subpixel=spat_subpixel, slice_subpixel=slice_subpixel,
                                  skip_subpix_weights=True, correct_dar=correct_dar)
@@ -1469,7 +1514,7 @@ def generate_image_subpixel(image_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
         for fr in range(numframes):
             msgs.info(f"Creating image {fr + 1}/{numframes}")
             # Subpixellate
-            img, _, _ = subpixellate(image_wcs, bins, _sciImg[fr], _ivarImg[fr], _waveImg[fr], _slitid_img_gpm[fr], _wghtImg[fr],
+            img, _, _, _ = subpixellate(image_wcs, bins, _sciImg[fr], _ivarImg[fr], _waveImg[fr], _slitid_img_gpm[fr], _wghtImg[fr],
                                      _all_wcs[fr], _tilts[fr], _slits[fr], _astrom_trans[fr], _all_dar[fr], _ra_offset[fr], _dec_offset[fr],
                                      spec_subpixel=spec_subpixel, spat_subpixel=spat_subpixel, slice_subpixel=slice_subpixel,
                                      skip_subpix_weights=True, correct_dar=correct_dar)
@@ -1482,7 +1527,7 @@ def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
                            all_wcs, tilts, slits, astrom_trans, all_dar,
                            ra_offset, dec_offset,
                            spec_subpixel=5, spat_subpixel=5, slice_subpixel=5, skip_subpix_weights=False,
-                           overwrite=False, outfile=None, whitelight_range=None, correct_dar=True):
+                           correct_dar=True):
     """
     Save a datacube using the subpixel algorithm. Refer to the subpixellate()
     docstring for further details about this algorithm
@@ -1555,18 +1600,7 @@ def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
             time, and this is an example where you might consider setting this
             variable to True. The flux datacube is unaffected by this variable.
             The default is False.
-        overwrite (bool, optional):
-            If True, the output cube will be overwritten.
-        outfile (str, optional):
-            Filename to be used to save the datacube
-        whitelight_range (None, list, optional):
-            A two element list that specifies the minimum and maximum
-            wavelengths (in Angstroms) to use when constructing the white light
-            image (format is: [min_wave, max_wave]). If None, the cube will be
-            collapsed over the full wavelength range. If a list is provided an
-            either element of the list is None, then the minimum/maximum
-            wavelength range of that element will be set by the minimum/maximum
-            wavelength of all_wave.
+
         correct_dar (bool, optional):
             If True, the DAR correction will be applied to the datacube. If the
             DAR correction is not available, the datacube will not be corrected.
@@ -1579,15 +1613,16 @@ def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
         error cube is (nwave, nspat1, nspat2).
         (3) the corresponding bad pixel mask cube. The shape of the bad pixel
         mask cube is (nwave, nspat1, nspat2).
-        (4) a 1D array containing the wavelength at each spectral coordinate of the datacube. The
+        (4) A cube indicating the occupation number of a given pixel TODO: elaborate on this
+        (5) a 1D array containing the wavelength at each spectral coordinate of the datacube. The
         shape of the wavelength array is (nwave,).
     """
     # Check the inputs
-    if whitelight_range is not None and outfile is None:
-            msgs.error("Must provide an outfile name if whitelight_range is set")
+    #if whitelight_range is not None and outfile is None:
+    #        msgs.error("Must provide an outfile name if whitelight_range is set")
 
     # Subpixellate
-    flxcube, varcube, bpmcube = subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
+    flxcube, varcube, bpmcube, normcube = subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
                                              all_wcs, tilts, slits, astrom_trans, all_dar, ra_offset, dec_offset,
                                              spec_subpixel=spec_subpixel, spat_subpixel=spat_subpixel,
                                              slice_subpixel=slice_subpixel, skip_subpix_weights=skip_subpix_weights,
@@ -1598,26 +1633,27 @@ def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
     wcs_scale = (1.0*output_wcs.spectral.wcs.cunit[0]).to(units.Angstrom).value  # Ensures the WCS is in Angstroms
     wave = wcs_scale * output_wcs.spectral.wcs_pix2world(np.arange(nspec), 0)[0]
 
-    # Check if the user requested a white light image
-    if whitelight_range is not None:
-        # Grab the WCS of the white light image
-        whitelight_wcs = output_wcs.celestial
-        # Determine the wavelength range of the whitelight image
-        if whitelight_range[0] is None:
-            whitelight_range[0] = wave[0]
-        if whitelight_range[1] is None:
-            whitelight_range[1] = wave[-1]
-        msgs.info("White light image covers the wavelength range {0:.2f} A - {1:.2f} A".format(
-            whitelight_range[0], whitelight_range[1]))
-        # Get the output filename for the white light image
-        out_whitelight = get_output_whitelight_filename(outfile)
-        whitelight_img = make_whitelight_fromcube(flxcube, bpmcube, wave=wave, wavemin=whitelight_range[0], wavemax=whitelight_range[1])
-        msgs.info("Saving white light image as: {0:s}".format(out_whitelight))
-        img_hdu = fits.PrimaryHDU(whitelight_img.T, header=whitelight_wcs.to_header())
-        img_hdu.writeto(out_whitelight, overwrite=overwrite)
+    # # Check if the user requested a white light image
+    # if whitelight_range is not None:
+    #     # Grab the WCS of the white light image
+    #     whitelight_wcs = output_wcs.celestial
+    #     # Determine the wavelength range of the whitelight image
+    #     if whitelight_range[0] is None:
+    #         whitelight_range[0] = wave[0]
+    #     if whitelight_range[1] is None:
+    #         whitelight_range[1] = wave[-1]
+    #     msgs.info("White light image covers the wavelength range {0:.2f} A - {1:.2f} A".format(
+    #         whitelight_range[0], whitelight_range[1]))
+    #     # Get the output filename for the white light image
+    #     out_whitelight = get_output_whitelight_filename(outfile)
+    #     whitelight_img = make_whitelight_fromcube(flxcube, bpmcube, wave=wave, wavemin=whitelight_range[0], wavemax=whitelight_range[1])
+    #     msgs.info("Saving white light image as: {0:s}".format(out_whitelight))
+    #     img_hdu = fits.PrimaryHDU(whitelight_img.T, header=whitelight_wcs.to_header())
+    #     img_hdu.writeto(out_whitelight, overwrite=overwrite)
 
     # TODO :: Avoid transposing these large cubes
-    return flxcube.T, np.sqrt(varcube.T), bpmcube.T, wave
+    return flxcube.T, np.sqrt(varcube.T), bpmcube.T, normcube.T, wave
+
 
 
 def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
@@ -1715,7 +1751,9 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
     Returns:
         :obj:`tuple`: Three or four `numpy.ndarray`_ objects containing (1) the
         datacube generated from the subpixellated inputs, (2) the corresponding
-        variance cube, and (3) the corresponding bad pixel mask cube.
+        variance cube, and (3) the corresponding bad pixel mask cube. (4) A cube
+        indicating the occupation number of a given pixel TODO: elaborate on this
+        
     """
     # Check the inputs for combinations of lists or not
     _sciImg, _ivarImg, _waveImg, _gpmImg, _wghtImg, _all_wcs, _tilts, _slits, _astrom_trans, _all_dar, _ra_offset, _dec_offset = \
@@ -1821,15 +1859,22 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
             # Reshape the voxel coordinates
             vox_coord = vox_coord.reshape(numpix * num_all_subpixels, 3)
             # Use the "fast histogram" algorithm, that assumes regular bin spacing
-            flxcube += histogramdd(vox_coord, bins=outshape, range=binrng, weights=np.repeat(this_sci[this_sl] * this_wght_subpix[this_sl], num_all_subpixels) * subpix_wght)
-            varcube += histogramdd(vox_coord, bins=outshape, range=binrng, weights=np.repeat(this_var[this_sl] * this_wght_subpix[this_sl]**2, num_all_subpixels) * subpix_wght**3)
-            normcube += histogramdd(vox_coord, bins=outshape, range=binrng, weights=np.repeat(this_wght_subpix[this_sl], num_all_subpixels) * subpix_wght)
+            flxcube += histogramdd(
+                vox_coord, bins=outshape, range=binrng, 
+                weights=np.repeat(this_sci[this_sl] * this_wght_subpix[this_sl], num_all_subpixels) * subpix_wght)
+            varcube += histogramdd(
+                vox_coord, bins=outshape, range=binrng, 
+                weights=np.repeat(this_var[this_sl] * this_wght_subpix[this_sl]**2, num_all_subpixels) * subpix_wght**3)
+            normcube += histogramdd(
+                vox_coord, bins=outshape, range=binrng, weights=np.repeat(this_wght_subpix[this_sl], num_all_subpixels) * subpix_wght)
+            #if (flxcube.shape[0]==77) & (flxcube.shape[1] == 78) & (flxcube.shape[2] == 2270):
+            #    embed()
 
     # Normalise the datacube and variance cube
     nc_inverse = utils.inverse(normcube)
     flxcube *= nc_inverse
     varcube *= nc_inverse**2
-    bpmcube = (normcube == 0).astype(np.uint8)
+    bpmcube = (normcube == 0) #.astype(np.uint8)
 
     # Return the datacube, variance cube and bad pixel cube
-    return flxcube, varcube, bpmcube
+    return flxcube, varcube, bpmcube, normcube
