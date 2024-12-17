@@ -2684,7 +2684,7 @@ class EdgeTraceSet(calibframe.CalibFrame):
         """
         Remove user-selected traces.
 
-        The traces must be synced into slits to run this function
+        The traces must be synced into slits before calling this method.
 
         Parameters
         ----------
@@ -2693,6 +2693,11 @@ class EdgeTraceSet(calibframe.CalibFrame):
             identify the detector, spectral pixel, and spatial pixel, or they
             can be lists that provide the pixel (y_spec, x_spat) coordinates
             directly.
+
+        Returns
+        -------
+        :obj:`bool`
+            Flag that traces were removed.
         """
         if not self.is_synced:
             msgs.error('Trace removal should only be executed after traces have been '
@@ -2702,6 +2707,9 @@ class EdgeTraceSet(calibframe.CalibFrame):
             msgs.error(f'Input to rm_user_traces must be a list, not {type(rm_traces)}')
 
         if isinstance(rm_traces[0], str):
+            # NOTE: Ignores any negatives in the definition of the detector
+            # numbers.  (Negatives are used for manual extractions to select the
+            # negative trace.)
             _rm_traces = [list(parse.parse_image_location(rt, self.spectrograph)[1:])
                             for rt in rm_traces]
             _rm_traces = [rt[1:] for rt in _rm_traces if rt[0] == self.traceimg.detector.name]
