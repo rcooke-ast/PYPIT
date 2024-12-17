@@ -28,6 +28,17 @@ __version__ = version
 # Report current coverage
 __coverage__ = 0.55
 
+# Import and instantiate the user
+# NOTE: This **MUST** come before instantiating the logger, msgs
+try:
+    # There appears to be a bug in getpass in windows systems where the pwd
+    # module doesn't load
+    import getpass
+except ModuleNotFoundError:
+    pypeit_user = os.getlogin()
+else:
+    pypeit_user = getpass.getuser()
+
 # Import and instantiate the logger
 # NOTE: This **MUST** be defined after __version__; i.e., pypmsgs imports pypeit
 # and uses pypeit.__version__.
