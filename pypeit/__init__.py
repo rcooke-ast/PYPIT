@@ -35,9 +35,16 @@ try:
     # module doesn't load
     import getpass
     pypeit_user = getpass.getuser()
-except ModuleNotFoundError:
-    # TODO: Why don't we just always use this?
-    pypeit_user = os.getlogin()
+except (ModuleNotFoundError, OSError):
+    pypeit_user = None
+if pypeit_user is None:
+    try:
+        pypeit_user = os.getlogin()
+    except OSError:
+        pypeit_user = None
+if pypeit_user is None:
+    # Assume the user is not defined
+    pypeit_user = 'unknownuser'
 
 # Import and instantiate the logger
 # NOTE: This **MUST** be defined after __version__; i.e., pypmsgs imports pypeit
