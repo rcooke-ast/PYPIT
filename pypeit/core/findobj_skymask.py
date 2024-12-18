@@ -168,7 +168,7 @@ def ech_findobj_ineach_order(
     det='DET01', inmask=None, std_trace=None, ncoeff=5, 
     hand_extract_dict=None,
     box_radius=2.0, fwhm=3.0,
-    use_user_fwhm=False, maxdev=2.0, nperorder=2,
+    use_user_fwhm=False, maxdev=2.0, nperorder=2, numiterfit=10,
     extract_maskwidth=3.0, snr_thresh=10.0,
     specobj_dict=None, trim_edg=(5,5),
     show_peaks=False, show_single_fits=False,
@@ -260,6 +260,8 @@ def ech_findobj_ineach_order(
         maxdev (:obj:`float`, optional):
             Maximum deviation of pixels from polynomial fit to trace
             used to reject bad pixels in trace fitting.
+        numiterfit (:obj:`int`, optional):
+            Number of iterations to use when fitting the object traces.
         nperorder (:obj:`int`, optional):
             Maximum number of objects allowed per order.  If there are more
             detections than this number, the code will select the ``nperorder``
@@ -331,7 +333,7 @@ def ech_findobj_ineach_order(
                 spec_min_max=spec_min_max[:,iord],
                 inmask=inmask_iord,std_trace=std_in, 
                 ncoeff=ncoeff, fwhm=fwhm, use_user_fwhm=use_user_fwhm, maxdev=maxdev,
-                hand_extract_dict=hand_extract_dict,  
+                numiterfit=numiterfit, hand_extract_dict=hand_extract_dict,
                 nperslit=nperorder, extract_maskwidth=extract_maskwidth,
                 snr_thresh=snr_thresh, trim_edg=trim_edg, 
                 boxcar_rad=box_radius/plate_scale_ord[iord],
@@ -1038,7 +1040,7 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
                 nabove_min_snr=2, pca_explained_var=99.0, 
                 box_radius=2.0, fwhm=3.0,
                 use_user_fwhm=False, maxdev=2.0, 
-                nperorder=2,
+                nperorder=2, numiterfit=10,
                 extract_maskwidth=3.0, snr_thresh=10.0,
                 specobj_dict=None, trim_edg=(5,5),
                 show_peaks=False, show_fits=False, 
@@ -1181,6 +1183,8 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
         maxdev (:obj:`float`, optional):
             Maximum deviation of pixels from polynomial fit to trace
             used to reject bad pixels in trace fitting.
+        numiterfit (:obj:`int`, optional):
+            Number of iterations to perform when building the trace fits.
         hand_extract_dict (:obj:`dict`, optional):
             Dictionary with info on manual extraction; see
             :class:`~pypeit.manual_extract.ManualExtractionObj`.
@@ -1290,6 +1294,7 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
         use_user_fwhm=use_user_fwhm,
         nperorder=nperorder,
         maxdev=maxdev,
+        numiterfit=numiterfit,
         box_radius=box_radius,
         objfindQA_filename=objfindQA_filename,
         hand_extract_dict=manual_extract_dict)
@@ -1500,7 +1505,7 @@ def get_fwhm(fwhm_in, nsamp, smash_peakflux, spat_fracpos, flux_smash_smth):
 def objs_in_slit(image, ivar, thismask, slit_left, slit_righ, 
                  inmask=None, fwhm=3.0,
                  sigclip_smash=5.0, use_user_fwhm=False, boxcar_rad=7.,
-                 maxdev=2.0, spec_min_max=None, hand_extract_dict=None, std_trace=None,
+                 maxdev=2.0, numiterfit=10, spec_min_max=None, hand_extract_dict=None, std_trace=None,
                  ncoeff=5, nperslit=None, snr_thresh=10.0, trim_edg=(5,5),
                  extract_maskwidth=4.0, specobj_dict=None, find_min_max=None,
                  show_peaks=False, show_fits=False, show_trace=False,
@@ -1588,6 +1593,10 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
         maxdev (:obj:`float`, optional):
             Maximum deviation of pixels from polynomial fit to trace
             used to reject bad pixels in trace fitting.
+        numiterfit (:obj:`int`, optional):
+            Number of iterations to use in the iterative trace fitting.
+            The number of iterations will be reduced if the fit has converged
+            to a value less than 0.1 pixels over the entire trace.
         spec_min_max (:obj:`tuple`, optional):
             2-tuple defining the minimum and maximum pixel in the spectral
             direction with useable data for this slit/order.  If None, the
@@ -1904,8 +1913,9 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
     msgs.info("Automatic finding routine found {0:d} objects".format(len(sobjs)))
 
     # Fit the object traces
+    tolerance = 0.1  # Tolerance in pixels before the trace fit has converged
     if len(sobjs) > 0:
-        msgs.info('Fitting the object traces')
+        msgs.info('Fitting the traces')
         # Note the transpose is here to pass in the TRACE_SPAT correctly.
         xinit_fweight = np.copy(sobjs.TRACE_SPAT.T).astype(float)
         spec_mask = (spec_vec >= spec_min_max_out[0]) & (spec_vec <= spec_min_max_out[1])
@@ -1914,9 +1924,16 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
                                  trace_bpm=np.invert(trc_inmask), fwhm=fwhm, maxdev=maxdev,
                                  idx=sobjs.NAME, debug=show_fits)[0]
         xinit_gweight = np.copy(xfit_fweight)
-        xfit_gweight = fit_trace(image, xinit_gweight, ncoeff, bpm=np.invert(inmask), maxshift=1.,
-                                 trace_bpm=np.invert(trc_inmask), fwhm=fwhm, maxdev=maxdev,
-                                 weighting='gaussian', idx=sobjs.NAME, debug=show_fits)[0]
+        for nn in range(numiterfit):
+            xfit_gweight = fit_trace(image, xinit_gweight, ncoeff, bpm=np.invert(inmask), maxshift=1.,
+                                     trace_bpm=np.invert(trc_inmask), fwhm=fwhm, maxdev=maxdev,
+                                     weighting='gaussian', idx=sobjs.NAME, debug=show_fits)[0]
+            maxdev = np.max(np.abs(xfit_gweight-xinit_gweight))
+            xinit_gweight = np.copy(xfit_gweight)
+            if maxdev <= tolerance:
+                break
+        if maxdev > tolerance:
+            msgs.warn('Trace fitting did not converge.  Check the fits.')
 
         # assign the final trace
         for iobj in range(nobj_reg):
