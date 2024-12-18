@@ -130,19 +130,6 @@ def get_dimen(x, maxp=25):
     return pages, npp
 
 
-# THIS IS ONLY USED BY DEPRECATED FUNCTIONS
-#def gen_timestamp():
-#    """ Generate a simple time stamp including the current user
-#
-#    Returns
-#    -------
-#    timestamp : str
-#      user_datetime
-#    """
-#    tstamp = datetime.datetime.today().strftime('%Y-%m-%d-T%Hh%Mm%Ss')
-#    return '{:s}_{:s}'.format(pypeit_user, tstamp)
-
-
 def html_header(title):
     """
     Generate a simple HTML header
