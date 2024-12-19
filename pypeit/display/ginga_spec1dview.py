@@ -4,40 +4,68 @@ visualizing and analyzing 1D spectra from FITS files. The plugin allows users
 to plot spectra, identify spectral lines from various line lists, and
 customize the display according to different parameters.
 
-**Plugin Type: Local**
+Plugin Type: Local
+==================
 
 Spec1dView is a local plugin, which means it is associated with a specific
 channel in the Ginga viewer. An instance of the plugin can be opened for
 each channel, allowing for multiple spectra to be analyzed simultaneously.
 
-**Usage**
+Usage
+-----
+
 - Load and visualize 1D spectra from FITS files.
+
 - Customize the display by selecting different line lists, extraction types,
   and flux/mask settings.
+
 - Update the redshift to shift the spectral lines accordingly.
 
-**Editing**
+Editing
+-------
+
 Users can modify the visualization by:
+
 - Choosing from a variety of line lists to identify spectral features.
+
 - Selecting different types of extraction methods (OPT, BOX).
+
 - Applying or removing flux calibration and masking options.
+
 - Updating the redshift value to reflect the observed wavelengths.
 
-**UI**
+UI
+--
+
 The user interface provides controls for:
+
 - Selecting the line list from a combobox.
+
 - Entering a redshift value to shift the spectrum.
-- Choosing the extraction type, flux calibration, and masking options via comboboxes.
+
+- Choosing the extraction type, flux calibration, and masking options via
+  comboboxes.
+
 - Buttons to load a FITS file and clear the current selection.
 
-**Buttons**
+Buttons
+-------
+
 - Update z: Updates the redshift value and refreshes the spectrum plot.
+
 - Enter: Loads the specified FITS file for analysis.
+
 - Clear: Clears the current inputs and resets the UI settings.
 
-**Tips**
-- Use the comboboxes to switch between different line lists and adjust the spectrum display settings.
-- Ensure that the correct FITS file path is entered before attempting to load the data.
+Tips
+----
+
+- Use the comboboxes to switch between different line lists and adjust the
+  spectrum display settings.
+
+- Ensure that the correct FITS file path is entered before attempting to load
+  the data.
+
 """
 import time
 import numpy as np
