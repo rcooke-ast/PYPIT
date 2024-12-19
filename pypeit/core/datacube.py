@@ -148,13 +148,13 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
     # TODO :: May want to generate the image on a finer pixel scale first
     # TODO JFH: The 2D Gaussian fitting should be using the noise and the gpm. This should be 
     # implemented with scipy.optimize and a loss function instead of curve_fit
-    popt, pcov = opt.curve_fit(gaussian2D, (xx, yy), image.ravel() / wlscl, 
-                               bounds=bounds, p0=initial_guess)
-    # Generate a best fit model
     # Setup the coordinates
     x = np.linspace(0, image.shape[0] - 1, image.shape[0])
     y = np.linspace(0, image.shape[1] - 1, image.shape[1])
-    xx, yy = np.meshgrid(x, y, indexing='ij')    
+    xx, yy = np.meshgrid(x, y, indexing='ij') 
+    popt, pcov = opt.curve_fit(gaussian2D, (xx, yy), image.ravel() / wlscl, 
+                               bounds=bounds, p0=initial_guess)
+    # Generate a best fit model   
     model = gaussian2D((xx, yy), *popt).reshape(image.shape) * wlscl
     # Return the fitting results
     return popt, pcov, model
