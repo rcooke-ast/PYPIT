@@ -4,8 +4,6 @@
 
 """
 import os
-import datetime
-import getpass
 import glob
 import numpy as np
 import yaml
@@ -130,24 +128,6 @@ def get_dimen(x, maxp=25):
         npp.append(int(xt))
         xr -= xt
     return pages, npp
-
-
-def gen_timestamp():
-    """ Generate a simple time stamp including the current user
-
-    Returns
-    -------
-    timestamp : str
-      user_datetime
-    """
-    tstamp = datetime.datetime.today().strftime('%Y-%m-%d-T%Hh%Mm%Ss')
-    try:
-        user = getpass.getuser()
-    except ModuleNotFoundError:
-        # there appears to be a bug in getpass in windows systems where the pwd module doesn't load
-        user = os.getlogin()
-    # Return
-    return '{:s}_{:s}'.format(user, tstamp)
 
 
 def html_header(title):
