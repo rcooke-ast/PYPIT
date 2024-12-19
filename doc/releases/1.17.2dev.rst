@@ -41,4 +41,6 @@ Bug Fixes
 
 - Fix the WCS for the datacube generation. There was an offset
   in both spatial dimensions equal to half the field of view.
+- Fix the code for the extraction of the 1D flat spectrum, so that
+  the spectrum is extracted even when `pixelflat_model` does not exist.
 
