@@ -138,4 +138,31 @@ vs spatial position vector. The best way to choose these pixels is to run PypeIt
 without it set. Then run :ref:`pypeit_show_2dspec` to view the sky-subtracted
 image and decide which pixels to use for object finding. Then re-run ``PypeIt``.
 
+Object Tracing
+==============
 
+For automatically identified objects (i.e., not manual extractions),
+PypeIt improves the object trace by fitting the spatial position of the peak
+as a function of wavelength. In some situations, the object trace is poorly
+determined by the peak location, and the code will fail to trace the object
+correctly. For example, if the slit edges are not well-defined, the object's
+position relative to the slit edges is also poorly defined, and the object trace
+is difficult to determine. In these cases, the user can attempt to iterate
+the object tracing by using a relatively low order polynomial in combination
+with an iterative fit, as follows
+
+.. code-block:: ini
+
+    [reduce]
+        [[findobj]]
+            find_numiterfit = 10
+            trace_npoly = 4
+
+Note that the default value is typically ``trace_npoly=5``. Also note that the
+object tracing will break if successive iterations yields the same object trace
+to within 0.1 pixels. If you notice a relatively poor object trace, sometimes in
+combination with the object counts being masked, an iterative fit may help to
+resolve your problem. If, on the other hand, your object is relatively faint, you
+may benefit from using the trace of a standard star (this is the default behaviour),
+and you can provide a 1D spectrum of a previously reduced standard star with the
+``std_spec1d`` parameter.
