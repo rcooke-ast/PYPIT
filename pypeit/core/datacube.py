@@ -72,7 +72,7 @@ def gaussian2D(tup, intflux, xo, yo, sigma_x, sigma_y, theta, offset):
     return gtwod.ravel()
 
 
-def fitGaussian2D(image, gpm=None, fwhm=3.0, norm=False, debug=True):
+def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, debug=True):
     """
     Fit a 2D Gaussian to an input image. It is recommended that the input image
     is scaled to a maximum value that is ~1, so that all fit parameters are of
@@ -86,6 +86,13 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, norm=False, debug=True):
         A 2D input image
     gpm : `numpy.ndarray`_, optional
         A good pixel mask. Pixels that are True are good. Default is None,
+    fwhm : float, optional
+        The FWHM of the image in pixels. This is used to estimate the initial
+        guess for the Gaussian fit, the fit bounds, and the median filter kernel
+        width if median filtering is used. Default is 3.0 pixels. 
+    median_filter : bool, optional
+        If True, the object finding will be performed on a median filtered
+        image with a kernel size of fwhm, instead of the image itself. Default is False.
     norm : bool, optional
         If True, the input image will be normalised to the maximum value
         of the input image.
@@ -103,19 +110,18 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, norm=False, debug=True):
     _gpm = np.ones_like(image, dtype=bool) if gpm is None else gpm
     # Normalise if requested
     wlscl = np.max(image) if norm else 1.0
-    # Setup the coordinates
-    x = np.linspace(0, image.shape[0] - 1, image.shape[0])
-    y = np.linspace(0, image.shape[1] - 1, image.shape[1])
-    xx, yy = np.meshgrid(x, y, indexing='ij')
     # Setup the fitting params - Estimate a starting point for the fit using a median filter
-    int_kernel = np.clip(round(fwhm), 3, None)
-    if int_kernel % 2 == 0:
-        int_kernel += 1 if fwhm > int_kernel else -1
-    med_filt_image = signal.medfilt2d(image, kernel_size=int_kernel)
+    if median_filter:    
+        int_kernel = np.clip(round(fwhm), 3, None)
+        if int_kernel % 2 == 0:
+            int_kernel += 1 if fwhm > int_kernel else -1
+        objfind_image = signal.medfilt2d(image, kernel_size=int_kernel)
+    else: 
+        objfind_image = image
     ## Find the objects 
-    mean, median, std = sigma_clipped_stats(med_filt_image*gpm, sigma=3.0)  
+    mean, median, std = sigma_clipped_stats(objfind_image*gpm, sigma=3.0)  
     daofind = DAOStarFinder(fwhm=fwhm, threshold=5.*std, exclude_border=True, brightest=1)  
-    sources = daofind(med_filt_image - median, mask=np.logical_not(gpm))
+    sources = daofind(objfind_image - median, mask=np.logical_not(gpm))
     msgs.info('DAOStarFinder brightest source properties')
     for col in sources.colnames:  
         if col not in ('id', 'npix'):
@@ -125,14 +131,12 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, norm=False, debug=True):
     
     if debug: 
         plt.figure(figsize=(10, 8))  # Adjust the size as needed
-        plt.imshow(med_filt_image*gpm-median, origin='lower', 
+        plt.imshow(objfind_image*gpm-median, origin='lower', 
                    interpolation='nearest', cmap='gray', vmin=median-2.0*std, vmax=median+8.0*std)
         plt.plot(idx_max[1], idx_max[0], 'rx', markersize=10)
         plt.title(f'Whitelight Source Position: (x={idx_max[1]:.2f}, y={idx_max[0]:.2f})', fontsize=20)
         plt.show()        
 
-    
-    
     # old code
     #idx_max = np.unravel_index(np.argmax(med_filt_image), image.shape)
     initial_guess = (1, idx_max[0], idx_max[1], fwhm/2.35, fwhm/2.35, 0, 0)
@@ -142,8 +146,15 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, norm=False, debug=True):
               [np.inf, idx_max[0]+fwhm/3.0, idx_max[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
     # Perform the fit
     # TODO :: May want to generate the image on a finer pixel scale first
-    popt, pcov = opt.curve_fit(gaussian2D, (xx, yy), image.ravel() / wlscl, bounds=bounds, p0=initial_guess)
+    # TODO JFH: The 2D Gaussian fitting should be using the noise and the gpm. This should be 
+    # implemented with scipy.optimize and a loss function instead of curve_fit
+    popt, pcov = opt.curve_fit(gaussian2D, (xx, yy), image.ravel() / wlscl, 
+                               bounds=bounds, p0=initial_guess)
     # Generate a best fit model
+    # Setup the coordinates
+    x = np.linspace(0, image.shape[0] - 1, image.shape[0])
+    y = np.linspace(0, image.shape[1] - 1, image.shape[1])
+    xx, yy = np.meshgrid(x, y, indexing='ij')    
     model = gaussian2D((xx, yy), *popt).reshape(image.shape) * wlscl
     # Return the fitting results
     return popt, pcov, model
