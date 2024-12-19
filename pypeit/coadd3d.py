@@ -20,6 +20,7 @@ from pypeit.core.flexure import calculate_image_phase
 from pypeit.core import datacube, extract, flux_calib, parse, combine 
 from pypeit.spectrographs.util import load_spectrograph
 
+
 from IPython import embed
 
 
@@ -239,14 +240,22 @@ class DataCube(datamodel.DataContainer):
         # Datacube's are counts/second, so set the exposure time to 1
         exptime = 1.0
         # TODO :: Avoid transposing these large cubes
-        sobjs = datacube.extract_point_source(self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs,
-                                              exptime=exptime, pypeline=self.spectrograph.pypeline,
+        sobjs, spec2d = datacube.extract_point_source(self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs,
+                                              exptime=exptime, 
                                               fluxed=self.fluxed, boxcar_radius=boxcar_radius,
-                                              optfwhm=fwhm, whitelight_range=parset['cube']['whitelight_range'])
-
+                                              optfwhm=fwhm, whitelight_range=parset['cube']['whitelight_range'], 
+                                              spectrograph = self.spectrograph)
         # Save the extracted spectrum
-        spec1d_filename = 'spec1d_' + self.filename if outname is None else outname
+        file_suffix = self.filename if outname is None else outname
+        spec1d_filename = 'spec1d_' + file_suffix
         sobjs.write_to_fits(self.head0, spec1d_filename, overwrite=overwrite)
+        # Save the psuedo spec2d images
+        all_spec2d = spec2dobj.AllSpec2DObj()
+        all_spec2d[spec2d.detector.name] = spec2d
+        # Build header for spec2d
+        outfile2d = 'spec2d_{:s}'.format(file_suffix)
+        all_spec2d.write_to_fits(outfile2d, pri_hdr=fits.Header(), overwrite=overwrite)
+
 
 
 class DARcorrection:
@@ -1501,19 +1510,21 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                                           sensfunc=sensfunc, fluxed=self.fluxcal)
                     final_cube.to_file(outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
                     # TODO fix this transpose issue
-                    datacube.make_whitelight(cube_wcs, flxcube.T, bpmcube.T, wave, outfile, 
+                    ivarcube = utils.inverse(np.square(sigcube))
+                    datacube.make_whitelight(cube_wcs, flxcube.T, ivarcube.T, np.logical_not(bpmcube.T), wave, outfile, 
                                              whitelight_range=wl_wvrng, overwrite=self.overwrite)
    
                     
 
             sigrej = 3.0
             maxiters = 10                
-            sci_list_out, var_list_out, gpm, nused = combine.weighted_combine(
+            sci_list_out, var_list_out, combined_gpm, nused = combine.weighted_combine(
                 weightcube_stack, [flxcube_stack], [varcube_stack],np.logical_not(bpmcube_stack), sigma_clip=True,
                                sigma_clip_stack=[flxcube_stack], sigrej=sigrej, maxiters=maxiters)
             combined_cube = sci_list_out[0]
             combined_sigma = np.sqrt(var_list_out[0])
-            combined_bpm = np.logical_not(gpm)
+            combined_ivar = utils.inverse(var_list_out[0])
+            combined_bpm = np.logical_not(combined_gpm)
             combined_outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
             msgs.info("Saving combined datacube as: {0:s}".format(combined_outfile))
             final_combined_cube = DataCube(combined_cube, combined_sigma, combined_bpm.astype(np.uint8), wave, self.specname, self.blaze_wave, self.blaze_spec,
@@ -1521,7 +1532,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             final_combined_cube.to_file(combined_outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
             # Make combined white light image 
             # TODO fix this transpose issue
-            datacube.make_whitelight(cube_wcs, combined_cube.T, combined_bpm.T, wave, combined_outfile, 
+            datacube.make_whitelight(cube_wcs, combined_cube.T, combined_ivar.T, combined_gpm.T, wave, combined_outfile, 
                                              whitelight_range=wl_wvrng, overwrite=self.overwrite)
    
 

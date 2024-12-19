@@ -57,7 +57,6 @@ class ExtractDataCube(scriptbase.ScriptBase):
         else:
             # Read in the relevant information from the .extract file
             ext3dfile = inputfiles.ExtractFile.from_file(args.ext_file)
-
             # Parameters
             spectrograph_def_par = spectrograph.default_pypeit_par()
             parset = par.PypeItPar.from_cfg_lines(cfg_lines=spectrograph_def_par.to_config(),
