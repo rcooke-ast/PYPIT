@@ -9,6 +9,7 @@ Submodules
 
    pypeit.display.display
    pypeit.display.ginga_plugins
+   pypeit.display.ginga_spec1dview
 
 Module contents
 ---------------
