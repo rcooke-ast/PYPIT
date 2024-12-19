@@ -43,4 +43,5 @@ Bug Fixes
   in both spatial dimensions equal to half the field of view.
 - Fix the code for the extraction of the 1D flat spectrum, so that
   the spectrum is extracted even when `pixelflat_model` does not exist.
-
+- The variance cube previously had a cubic term, and this has been changed
+  to a quadratic term. This has been cross-checked with simple subpixel calculations.
