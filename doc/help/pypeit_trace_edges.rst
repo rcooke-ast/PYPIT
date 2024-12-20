@@ -10,21 +10,20 @@
     
     options:
       -h, --help            show this help message and exit
-      -f PYPEIT_FILE, --pypeit_file PYPEIT_FILE
+      -f, --pypeit_file PYPEIT_FILE
                             PypeIt reduction file (default: None)
-      -t TRACE_FILE, --trace_file TRACE_FILE
+      -t, --trace_file TRACE_FILE
                             Image to trace (default: None)
-      -g GROUP, --group GROUP
-                            If providing a pypeit file, use the trace images for
+      -g, --group GROUP     If providing a pypeit file, use the trace images for
                             this calibration group. If None, use the first
                             calibration group. (default: None)
-      -d [DETECTOR ...], --detector [DETECTOR ...]
+      -d, --detector [DETECTOR ...]
                             Detector(s) to process. If more than one, the list of
                             detectors must be one of the allowed mosaics hard-coded
                             for the selected spectrograph. Using "mosaic" for
                             gemini_gmos, keck_deimos, or keck_lris will use the
                             default mosaic. (default: None)
-      -s SPECTROGRAPH, --spectrograph SPECTROGRAPH
+      -s, --spectrograph SPECTROGRAPH
                             A valid spectrograph identifier, which is only used if
                             providing files directly: aat_uhrf, bok_bc,
                             gemini_flamingos1, gemini_flamingos2,
@@ -47,14 +46,14 @@
                             soar_goodman_red, tng_dolores, vlt_fors2, vlt_sinfoni,
                             vlt_xshooter_nir, vlt_xshooter_uvb, vlt_xshooter_vis,
                             wht_isis_blue, wht_isis_red (default: None)
-      -b BINNING, --binning BINNING
+      -b, --binning BINNING
                             Image binning in spectral and spatial directions. Only
                             used if providing files directly; default is 1,1.
                             (default: None)
-      -p REDUX_PATH, --redux_path REDUX_PATH
+      -p, --redux_path REDUX_PATH
                             Path to top-level output directory. (default: current
                             working directory)
-      -c CALIB_DIR, --calib_dir CALIB_DIR
+      -c, --calib_dir CALIB_DIR
                             Name for directory in output path for calibration
                             file(s) relative to the top-level directory. (default:
                             Calibrations)
@@ -63,7 +62,7 @@
       --debug               Run in debug mode. (default: False)
       --show                Show the stages of trace refinements (only for the new
                             code). (default: False)
-      -v VERBOSITY, --verbosity VERBOSITY
+      -v, --verbosity VERBOSITY
                             Verbosity level between 0 [none] and 2 [all]. Default:
                             1. Level 2 writes a log with filename
                             trace_edges_YYYYMMDD-HHMM.log (default: 1)

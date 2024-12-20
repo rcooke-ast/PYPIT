@@ -213,3 +213,23 @@ def match_qa(arc_spec, tcent, line_list, IDs, scores, outfile = None, title=None
 
     plt.close()
     return
+
+
+def gen_timestamp():
+    """ Generate a simple time stamp including the current user
+
+    Returns
+    -------
+    timestamp : str
+      user_datetime
+    """
+    tstamp = datetime.datetime.today().strftime('%Y-%m-%d-T%Hh%Mm%Ss')
+    try:
+        import getpass
+        user = getpass.getuser()
+    except ModuleNotFoundError:
+        # there appears to be a bug in getpass in windows systems where the pwd module doesn't load
+        user = os.getlogin()
+    # Return
+    return '{:s}_{:s}'.format(user, tstamp)
+

@@ -20,11 +20,13 @@ from pypeit.core import procimg
 from pypeit.core import flat
 from pypeit.core import flexure
 from pypeit.core import scattlight
+from pypeit.core import qa
 from pypeit.core.mosaic import build_image_mosaic
 from pypeit.images import pypeitimage
 from pypeit import utils
 from pypeit.display import display
-
+from pypeit import io
+from pathlib import Path
 
 # TODO: I don't understand why we have some of these attributes.  E.g., why do
 # we need both hdu and headarr?
@@ -678,7 +680,8 @@ class RawImage:
         if self.par['spat_flexure_method'] != "skip" or not np.ma.is_masked(manual_spat_flexure):
             self.spat_flexure_shift = self.spatial_flexure_shift(slits, flatimages, method=self.par['spat_flexure_method'],
                                                                  manual_spat_flexure=manual_spat_flexure,
-                                                                 maxlag=self.par['spat_flexure_maxlag'])
+                                                                 maxlag=self.par['spat_flexure_maxlag'],
+                                                                 debug=debug)
 
         #   - Subtract scattered light... this needs to be done before flatfielding.
         if self.par['subtract_scattlight']:
@@ -771,7 +774,7 @@ class RawImage:
         return _det, self.image, self.ivar, self.datasec_img, self.det_img, self.rn2img, \
                 self.base_var, self.img_scale, self.bpm
 
-    def spatial_flexure_shift(self, slits, flatimages, force=False, manual_spat_flexure=np.ma.masked, method="detector", maxlag=20):
+    def spatial_flexure_shift(self, slits, flatimages, force=False, manual_spat_flexure=np.ma.masked, method="detector", debug=False):
         """
         Calculate a spatial shift in the edge traces due to flexure.
 
@@ -800,8 +803,8 @@ class RawImage:
                 'slit' method calculates the shift for each slit independently,
                 and the 'edge' method calculates the shift for each slit edge
                 independently.
-            maxlag (:obj:'float', optional):
-                Maximum range of lag values over which to compute the CCF.
+            debug (:obj:`bool`, optional):
+                Run in debug mode.
 
         Return:
             `numpy.ndarray`_: The calculated flexure correction for the edge of each slit shape is (nslits, 2)
@@ -829,13 +832,21 @@ class RawImage:
             msgs.info(f'Adopting a manual spatial flexure of {manual_spat_flexure} pixels')
             spat_flexure = np.full((slits.nslits, 2), np.float64(manual_spat_flexure))
         else:
+            # get filename for QA
+            basename = f'{io.remove_suffix(self.filename)}_{self.spectrograph.get_det_name(self.det)}'
+            outdir = str(Path(slits.calib_dir).parent) if slits.calib_dir is not None else None
+            qa_outfile = qa.set_qa_filename(basename, 'spat_flexure_qa_corr', out_dir=outdir)
             # Prepare the slit illumination profile to be used in the flexure correction
             slitprof = None
             if self.par['use_illumflat']:
                 slitprof = flatimages.fit2illumflat(slits, finecorr=False)
                 slitprof *= flatimages.fit2illumflat(slits, finecorr=True)
             # Now compute the spatial flexure shift
-            spat_flexure = flexure.spat_flexure_shift(self.image[0], slits, gpm=np.logical_not(self._bpm[0]), slitprof=slitprof, method=method, maxlag=maxlag)
+            spat_flexure = flexure.spat_flexure_shift(self.image[0], slits, method=method, bpm=self._bpm[0],
+                                                      slitprof=slitprof, maxlag=self.par['spat_flexure_maxlag'],
+                                                      sigdetect=self.par['spat_flexure_sigdetect'],
+                                                      debug=debug, qa_outfile=qa_outfile,
+                                                      qa_vrange=self.par['spat_flexure_vrange'])
 
         # Print the flexure values
         if np.all(spat_flexure == spat_flexure[0, 0]):
