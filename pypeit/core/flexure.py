@@ -29,15 +29,12 @@ from linetools.spectra import xspectrum1d
 from pypeit import msgs
 from pypeit import dataPaths
 from pypeit import io
-from pypeit import utils
-from pypeit.display import display
 from pypeit.core.wavecal import autoid
 from pypeit.core import arc
 from pypeit.core import extract
 from pypeit.core import fitting
 from pypeit.core import qa
 from pypeit.core import trace
-from pypeit.core.wavecal import wvutils
 from pypeit.datamodel import DataContainer
 from pypeit.images.detector_container import DetectorContainer
 from pypeit.images.mosaic import Mosaic

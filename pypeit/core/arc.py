@@ -1002,8 +1002,8 @@ def detect_lines(censpec, sigdetect=5.0, fwhm=4.0, fit_frac_fwhm=1.25, input_thr
                                                         sigma_lower=3.0, sigma_upper=3.0, cenfunc= np.nanmedian,
                                                         stdfunc = np.nanstd)
         if stddev == 0.0:
-            msgs.warn('stddev = 0.0, so resetting to 1.0')
-            stddev = 1.0
+            msgs.warn('stddev = 0.0, so resetting to 0.1')
+            stddev = 0.1
         thresh = med + sigdetect * stddev
     else:
         med = 0.0
