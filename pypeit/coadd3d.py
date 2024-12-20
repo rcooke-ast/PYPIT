@@ -221,7 +221,7 @@ class DataCube(datamodel.DataContainer):
             self._ivar = utils.inverse(self.sig**2)
         return self._ivar
 
-    def extract_spec(self, parset, outname=None, boxcar_radius=None, overwrite=False, debug=False):
+    def extract_spec(self, parset, outname=None, output_dir=None, boxcar_radius=None, overwrite=False, debug=False):
         """
         Extract a spectrum from the datacube
 
@@ -235,7 +235,11 @@ class DataCube(datamodel.DataContainer):
             Radius of the circular boxcar (in arcseconds) to use for the extraction
         overwrite : bool, optional
             Overwrite any existing files
+        output_dir : str, optional
+            The directory for the output files. If None, the output files are written to the
+            directory in which the class is run.
         """
+        _output_dir = '' if output_dir is None else output_dir
         # Extract the spectrum
         optfwhm = parset['findobj']['find_fwhm'] if parset['extraction']['use_user_fwhm'] else None
         
@@ -252,16 +256,16 @@ class DataCube(datamodel.DataContainer):
             self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs, exptime, 
             whitelight_range=parset['cube']['whitelight_range'], fluxed=self.fluxed, 
             boxcar_radius=boxcar_radius, optfwhm=optfwhm, manual_position=manual_position, 
-            spectrograph = self.spectrograph, debug=debug)
+            spectrograph = self.spectrograph, show_qa=debug)
         # Save the extracted spectrum
-        file_suffix = self.filename if outname is None else outname
-        spec1d_filename = 'spec1d_' + file_suffix
+        file_suffix = os.path.basename(self.filename) if outname is None else outname
+        spec1d_filename = os.path.join(_output_dir, 'spec1d_' + file_suffix)
         sobjs.write_to_fits(self.head0, spec1d_filename, overwrite=overwrite)
         # Save the psuedo spec2d images
         all_spec2d = spec2dobj.AllSpec2DObj()
         all_spec2d[spec2d.detector.name] = spec2d
         # Build header for spec2d
-        outfile2d = 'spec2d_{:s}'.format(file_suffix)
+        outfile2d = os.path.join(_output_dir, 'spec2d_{:s}'.format(file_suffix))
         all_spec2d.write_to_fits(outfile2d, pri_hdr=fits.Header(), overwrite=overwrite)
 
 
@@ -1334,7 +1338,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             self.all_align.append(alignSplines)
             self.all_dar.append(darcorr)
 
-    def run_align(self, fwhm=1.0):
+    def run_align(self, fwhm=1.5, show_qa=False):
         """
         This routine aligns multiple cubes by using manual input offsets or 
         by cross-correlating white light images.
@@ -1344,6 +1348,8 @@ class SlicerIFUCoAdd3D(CoAdd3D):
         fwhm (float): 
             The full-width half-maximum of the PSF in arcseconds. This is used only if the
             offsets are computed from point source positions. 
+        show_qa (bool):
+            If True, show QA plots for point source alignment. Default is False. 
 
         Returns
         -------
@@ -1422,18 +1428,25 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                         popt, pcov, model, init_obj_position = datacube.fitGaussian2D(
                             wl_imgs[:, :, ff], gpm=np.logical_not(bpm_imgs[:, :, ff]), fwhm = fwhm/platescale, 
                             norm=False)
-                        ra_star[ff], dec_star[ff] = init_obj_position[0], init_obj_position[1]
-                    ra_offsets = ((ra_star - ra_star[ref_idx])*self._dspat/cosdec).tolist()
-                    dec_offsets = ((dec_star - dec_star[ref_idx])*self._dspat).tolist()
+                        gaussian_position = popt[1], popt[2]
+                        if show_qa & (dd == numiter-1):
+                            datacube.whitelight_objfind_qa(
+                                wl_imgs[:, :, ff], utils.inverse(np.square(sig_imgs[:, :, ff])), 
+                                np.logical_not(bpm_imgs[:, :, ff]), model, gaussian_position, 
+                                init_obj_position, channel_prefix = f'Img_{ff}')
+                        ra_star[ff], dec_star[ff] = gaussian_position
+
+                    ra_shifts = ((ra_star - ra_star[ref_idx])*self._dspat/cosdec)
+                    dec_shifts = ((dec_star - dec_star[ref_idx])*self._dspat)
+                    ra_offsets =[ra_offsets[ff] + ra_shifts[ff] for ff in range(self.numfiles)]
+                    dec_offsets =[dec_offsets[ff] + dec_shifts[ff] for ff in range(self.numfiles)]
                     for ff in range(self.numfiles):
                         msgs.info("Spatial shift of cube #{0:d}:".format(ff + 1) + msgs.newline() +
                                 "RA, DEC (arcsec) = {0:+0.3f} E, {1:+0.3f} N".format(
-                                    ra_offsets[ff]*3600.0, dec_offsets[ff]*3600.0))
+                                    ra_shifts[ff]*3600.0, dec_shifts[ff]*3600.0))
                         
 
 
-                    
-                    
         return ra_offsets, dec_offsets
 
     def compute_weights(self):
@@ -1610,7 +1623,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                         whitelight_range=wl_wvrng, overwrite=self.overwrite)
    
                     
-
+            # TODO add an if self.align and self.combine block here to combine the datacubes
             sigrej = 3.0
             maxiters = 10                
             sci_list_out, var_list_out, combined_gpm, nused = combine.weighted_combine(

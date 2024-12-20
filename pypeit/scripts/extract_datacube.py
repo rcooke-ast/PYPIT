@@ -10,7 +10,8 @@ DataCube, and use it to flux calibrate the science DataCubes.
 .. include:: ../include/links.rst
 """
 from pypeit.scripts import scriptbase
-
+from pathlib import Path
+from IPython import embed
 
 class ExtractDataCube(scriptbase.ScriptBase):
 
@@ -42,7 +43,7 @@ class ExtractDataCube(scriptbase.ScriptBase):
         from pypeit import inputfiles
         from pypeit import utils
         from pypeit.spectrographs.util import load_spectrograph
-        from pypeit.coadd3d import DataCube
+        from pypeit.coadd3d import DataCube, CoAdd3D
 
         # Set the verbosity, and create a logfile if verbosity == 2
         msgs.set_logfile_and_verbosity('extract_datacube', args.verbosity)
@@ -72,9 +73,16 @@ class ExtractDataCube(scriptbase.ScriptBase):
         # Load the DataCube
         tstart = time.time()
 
+        
+        # Get the paths
+        coadd_scidir, qa_path = map(lambda x : Path(x).absolute(),
+                CoAdd3D.output_paths(args.file, parset, coadd_dir=parset['rdx']['redux_path']))
+
         # Extract the spectrum
-        extcube.extract_spec(parset['reduce'], outname=outname, boxcar_radius=boxcar_radius, overwrite=args.overwrite, 
-                            debug=args.debug)
+        extcube.extract_spec(
+            parset['reduce'], outname=outname, output_dir=str(coadd_scidir), 
+            boxcar_radius=boxcar_radius, overwrite=args.overwrite, 
+            debug=args.debug)
 
         # Report the extraction time
         msgs.info(utils.get_time_string(time.time()-tstart))

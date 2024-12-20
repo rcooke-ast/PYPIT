@@ -74,7 +74,7 @@ def gaussian2D(tup, intflux, xo, yo, sigma_x, sigma_y, theta, offset):
     return gtwod.ravel()
 
 
-def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, debug=True):
+def fitGaussian2D(image, gpm=None, fwhm=3.0, mask_edge=5, median_filter=False, norm=False, verbose=False):
     """
     Fit a 2D Gaussian to an input image. It is recommended that the input image
     is scaled to a maximum value that is ~1, so that all fit parameters are of
@@ -92,12 +92,21 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
         The FWHM of the image in pixels. This is used to estimate the initial
         guess for the Gaussian fit, the fit bounds, and the median filter kernel
         width if median filtering is used. Default is 3.0 pixels.
+    mask_edge : int, optional
+        The number of pixels to mask at the edges of the image. Default is 5 pixels.
     median_filter : bool, optional
         If True, the object finding will be performed on a median filtered
         image with a kernel size of fwhm, instead of the image itself. Default is False.
     norm : bool, optional
         If True, the input image will be normalised to the maximum value
         of the input image.
+    show_qa : bool, optional
+        If True a QA plot will be displayed in ginga. Default is False. 
+    channel_prefix : str, optional
+        The prefix to use for the channel names in the QA plot. Useful when the routine
+        is called multiple times in a loop. Default is ''.
+    verbose : bool, optional
+        If True, the DAOStarfinder properties of the brightest source will be printed to the screen. 
 
     Returns
     -------
@@ -127,14 +136,21 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
     else:
         objfind_image = image
     ## Find the objects
-    mean, median, std = sigma_clipped_stats(objfind_image*_gpm, sigma=3.0)
+    edgemask = np.zeros_like(image, dtype=bool)
+    edgemask[:mask_edge, :] = edgemask[-mask_edge:, :] = \
+    edgemask[:, :mask_edge] = edgemask[:, -mask_edge:] = True
+    totmask = edgemask | np.logical_not(_gpm)
+    mean, median, std = sigma_clipped_stats(objfind_image[np.logical_not(totmask)], sigma=3.0)
+    
+    # Create a border mask to exclude junk at the edges
     daofind = DAOStarFinder(fwhm=fwhm, threshold=5.*std, exclude_border=True, brightest=1)
-    sources = daofind(objfind_image - median, mask=np.logical_not(_gpm))
-    msgs.info('DAOStarFinder brightest source properties')
-    for col in sources.colnames:
-        if col not in ('id', 'npix'):
-            sources[col].info.format = '%.2f'  # for consistent table output
-    sources.pprint(max_width=76)
+    sources = daofind(objfind_image - median, mask=totmask)
+    if verbose: 
+        msgs.info('DAOStarFinder brightest source properties')
+        for col in sources.colnames:
+            if col not in ('id', 'npix'):
+                sources[col].info.format = '%.2f'  # for consistent table output
+        sources.pprint(max_width=76)
     init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
 
     initial_guess = (1, init_obj_position[0], init_obj_position[1], fwhm*fwhm2sigma, fwhm*fwhm2sigma, 0, 0)
@@ -153,6 +169,8 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
     # Generate a best fit model
     model = gaussian2D((xx, yy), *popt).reshape(image.shape) * wlscl
     # Return the fitting results
+    #if np.isclose(np.sum(image), -70.234,atol=0.01):
+    #    embed()
     return popt, pcov, model, init_obj_position
 
 
@@ -236,8 +254,8 @@ def correct_grating_shift(wave_eval, wave_curr, spl_curr, wave_ref, spl_ref, ord
 
 def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
                          whitelight_range=None, subpixel=20,
-                         boxcar_radius=None, fwhm=1.0, optfwhm=None, manual_position=None,
-                         fluxed=False, spectrograph='keck_kcrm', debug=False):
+                         boxcar_radius=None, fwhm=1.5, optfwhm=None, manual_position=None,
+                         fluxed=False, spectrograph='keck_kcrm', show_qa=False):
     """
     Extract a spectrum of a standard star from a datacube
 
@@ -269,8 +287,9 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         Radius of the circular boxcar (in arcseconds) to use for the extraction. Default is None, which
         means that the radius will be determined from the FWHM of the 2D Gaussian fit to the whitelight image.
     fwhm : float, optional
-        FWHM of the PSF in arcseconds. Use to determine the degree of smoothing of the whitelight image, and the
-        bounds of the parameters for the 2D Gaussian fit. Default is 1.0 arcseconds.
+        FWHM of the PSF in arcseconds. Use to determine the degree of smoothing of the whitelight image, the
+        kernel size for the initial object finding, and the bounds of the parameters for the 2D Gaussian fit. 
+        Default is 1.5 arcseconds.
     optfwhm = float, optional
         The FWHM of the PSF in arcseconds to be used for a 2D (symmetric) Gaussian spatial profile for optimal extraction.
         The default is None, which means that a non-parametric spatial profile will be used for optimal extraction
@@ -283,8 +302,8 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         Is the datacube fluxed?
     spectrograph : str or pypeit.spectrographs.spectrograph.Spectrograph, optional
         The spectrograph used to take the data. Default is 'keck_kcrm'
-    debug : bool, optional
-        If True, the function will display debugging images in ginga. Default is False.
+    show_qa : bool, optional
+        If True, the function will display alignment QA  images in ginga. Default is False.
 
     Returns
     -------
@@ -335,13 +354,12 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     wl_img, wl_ivar, wl_gpm = make_whitelight_fromcube(_flxcube, _ivarcube, _gpmcube, wave=wave,
                                       wavemin=whitelight_range[0], wavemax=whitelight_range[1])
     popt, pcov, model, init_obj_position = fitGaussian2D(wl_img, gpm=wl_gpm, fwhm = fwhm/platescale, norm=False)
-    
+    gaussian_position = popt[1], popt[2]
     # Object location for extraction 
     if manual_position is not None:
         xobj, yobj = manual_position  
     else: 
-        xobj, yobj = popt[1], popt[2]
-     
+        xobj, yobj = gaussian_position
     
     # Setup the coordinates of the mask
     x = np.linspace(0, numxx - 1, numxx * subpixel)
@@ -544,40 +562,111 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
                                     vel_type=None,
                                     maskdef_designtab=None)
 
-   
-    if debug: 
-        x_max, y_max = wl_img.T.shape
-        mean, med, sigma = sigma_clipped_stats(wl_img[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
-        cut_min = mean - 1.0 * sigma
-        cut_max = mean + 5.0 * sigma
-        viewer, ch_wl = display.show_image(wl_img.T, chname='Whitelight', wcs_match=True, cuts=(cut_min, cut_max))
-        mean_snr, med_snr, sigma_snr = sigma_clipped_stats((wl_img*np.sqrt(wl_ivar))[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
-        cut_min_snr = mean_snr - 1.0 * sigma_snr
-        cut_max_snr = mean_snr + 5.0 * sigma_snr
-        viewer, ch_snr = display.show_image(wl_img.T*np.sqrt(wl_ivar.T), chname='Whitelight S/N', wcs_match=True,
-                                            cuts=(cut_min_snr, cut_max_snr))
-        viewer, ch_model = display.show_image(model.T, chname='Gaussian Model', wcs_match=True, cuts=(cut_min, cut_max))
+    if show_qa: 
+        whitelight_objfind_qa(wl_img, wl_ivar, wl_gpm, model, gaussian_position, init_obj_position, 
+                          manual_position=manual_position)
+        
+        
+        
+    # if debug: 
+    #     x_max, y_max = wl_img.T.shape
+    #     mean, med, sigma = sigma_clipped_stats(wl_img[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
+    #     cut_min = mean - 1.0 * sigma
+    #     cut_max = mean + 5.0 * sigma
+    #     viewer, ch_wl = display.show_image(wl_img.T, chname='Whitelight', wcs_match=True, cuts=(cut_min, cut_max))
+    #     mean_snr, med_snr, sigma_snr = sigma_clipped_stats((wl_img*np.sqrt(wl_ivar))[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
+    #     cut_min_snr = mean_snr - 1.0 * sigma_snr
+    #     cut_max_snr = mean_snr + 5.0 * sigma_snr
+    #     viewer, ch_snr = display.show_image(wl_img.T*np.sqrt(wl_ivar.T), chname='Whitelight S/N', wcs_match=True,
+    #                                         cuts=(cut_min_snr, cut_max_snr))
+    #     viewer, ch_model = display.show_image(model.T, chname='Gaussian Model', wcs_match=True, cuts=(cut_min, cut_max))
 
-        # TODO Add WCS
-        ch_list = [ch_wl, ch_model, ch_snr]
-        for ich, ch in enumerate(ch_list):
-            display.show_points(viewer, ch, [yobj], [xobj], 
-                                color='red', 
-                                legend='Extracted           ; x={:.2f}, y={:.2f}'.format(xobj, yobj),
-                                legend_spec=0.05*x_max, legend_spat=0.5*y_max)
-            display.show_points(viewer, ch, [init_obj_position[1]], [init_obj_position[0]], 
-                                color='green', 
-                                legend='DAOStarFinder ; x={:.2f}, y={:.2f}'.format(init_obj_position[0], init_obj_position[1]),
-                                legend_spec=0.10*x_max, legend_spat=0.5*y_max)
-            if manual_position is not None:
-                display.show_points(viewer, ch, [manual_position[1]], [manual_position[0]], 
-                                color='orange', 
-                                legend='Manual              ; x={:.2f}, y={:.2f}'.format(manual_position[0], manual_position[1]),
-                                legend_spec=0.15*x_max, legend_spat=0.5*y_max)
+    #     # TODO Add WCS
+    #     ch_list = [ch_wl, ch_model, ch_snr]
+    #     for ich, ch in enumerate(ch_list):
+    #         display.show_points(viewer, ch, [yobj], [xobj], 
+    #                             color='red', 
+    #                             legend='Extracted           ; x={:.2f}, y={:.2f}'.format(xobj, yobj),
+    #                             legend_spec=0.05*x_max, legend_spat=0.5*y_max)
+    #         display.show_points(viewer, ch, [init_obj_position[1]], [init_obj_position[0]], 
+    #                             color='green', 
+    #                             legend='DAOStarFinder ; x={:.2f}, y={:.2f}'.format(init_obj_position[0], init_obj_position[1]),
+    #                             legend_spec=0.10*x_max, legend_spat=0.5*y_max)
+    #         if manual_position is not None:
+    #             display.show_points(viewer, ch, [manual_position[1]], [manual_position[0]], 
+    #                             color='orange', 
+    #                             legend='Manual              ; x={:.2f}, y={:.2f}'.format(manual_position[0], manual_position[1]),
+    #                             legend_spec=0.15*x_max, legend_spat=0.5*y_max)
         
 
     # Return the specobjs object and the spec2d object
     return sobjs, spec2d
+
+def whitelight_objfind_qa(wl_img, wl_ivar, wl_gpm, gaussian_model, gaussian_position, init_obj_position, 
+                          manual_position=None, channel_prefix=''):
+    """
+    Generate ginga QA for the white light image point source object finding. 
+    
+    Parameters
+    ----------
+    wl_img : `numpy.ndarray`_
+        The white light image
+    wl_ivar : `numpy.ndarray`_
+        The inverse variance of the white light image
+    wl_gpm : `numpy.ndarray`_
+        The good pixel mask of the white light image
+    gaussian_model : `numpy.ndarray`_
+        The 2D Gaussian model of the object from datacube.fitGaussian2D
+    gaussian_position : tuple
+        The object position in the image determined from the Gaussian fit to the object. The first
+        element is x and the second element is y.
+    init_obj_position : tuple
+        The initial object position in the image determined from DAOStarFinder. The first element is x and 
+        the second element is y.
+    manual_position : tuple, optional
+        The manual extraction object position in the image. 
+        The first element is x and the second element is y
+    channel_prefix : str, optional
+        The prefix to use for the channel name in ginga. Default is ''.
+    """
+
+    x_max, y_max = wl_img.T.shape
+    mean, med, sigma = sigma_clipped_stats(wl_img[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
+    cut_min = mean - 1.0 * sigma
+    cut_max = mean + 5.0 * sigma
+    viewer, ch_wl = display.show_image(
+        wl_img.T, chname=channel_prefix + 'Whitelight', wcs_match=True, cuts=(cut_min, cut_max))
+    mean_snr, med_snr, sigma_snr = sigma_clipped_stats((wl_img*np.sqrt(wl_ivar))[wl_gpm], 
+                                                       sigma_lower=5.0, sigma_upper=5.0)
+    cut_min_snr = mean_snr - 1.0 * sigma_snr
+    cut_max_snr = mean_snr + 5.0 * sigma_snr
+    viewer, ch_snr = display.show_image(
+        wl_img.T*np.sqrt(wl_ivar.T), chname=channel_prefix + 'Whitelight S/N', wcs_match=True,
+        cuts=(cut_min_snr, cut_max_snr))
+    viewer, ch_model = display.show_image(
+        gaussian_model.T, chname=channel_prefix + 'Gaussian Model', 
+        wcs_match=True, cuts=(cut_min, cut_max))
+
+    # TODO Add WCS
+    ch_list = [ch_wl, ch_model, ch_snr]
+    for ich, ch in enumerate(ch_list):
+        display.show_points(viewer, ch, [gaussian_position[1]], [gaussian_position[0]], 
+                            color='red', 
+                            legend='Gaussian           ; x={:.2f}, y={:.2f}'.format(gaussian_position[0], 
+                                                                                     gaussian_position[1]),
+                            legend_spec=0.05*x_max, legend_spat=0.5*y_max)
+        display.show_points(viewer, ch, [init_obj_position[1]], [init_obj_position[0]], 
+                            color='green', 
+                            legend='DAOStarFinder ; x={:.2f}, y={:.2f}'.format(init_obj_position[0], 
+                                                                               init_obj_position[1]),
+                            legend_spec=0.10*x_max, legend_spat=0.5*y_max)
+        if manual_position is not None:
+            display.show_points(viewer, ch, [manual_position[1]], [manual_position[0]], 
+                            color='orange', 
+                            legend='Manual              ; x={:.2f}, y={:.2f}'.format(manual_position[0], 
+                                                                                     manual_position[1]),
+                            legend_spec=0.15*x_max, legend_spat=0.5*y_max)
+    
 
 
 def make_good_skymask(slitimg, tilts):
@@ -1450,16 +1539,16 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
     # Compute the weights
     return compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                            all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
-                           wl_full, wl_bpm, dspat, dwv,
+                           wl_full, wl_sig, wl_bpm, dspat, dwv,
                            ra_min=ra_min, ra_max=ra_max, dec_min=dec_min, dec_max=dec_max, wave_min=wave_min,
                            sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, correct_dar=correct_dar)
 
 
 def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                     all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
-                    whitelight_img, whitelight_bpm, dspat, dwv,
+                    whitelight_img, whitelight_sigma, whitelight_bpm, dspat, dwv,
                     ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
-                    sn_smooth_npix=None, weight_method='auto', correct_dar=True):
+                    sn_smooth_npix=None, weight_method='auto', correct_dar=True, fwhm=1.5, show_qa=True):
     r"""
     Calculate wavelength dependent optimal weights. The weighting is currently
     based on a relative :math:`(S/N)^2` at each wavelength
@@ -1499,6 +1588,9 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     whitelight_img : `numpy.ndarray`_
         A 2D array containing a white light image, that was created with the
         input ``all`` arrays.
+    whitelight_sigma : `numpy.ndarray`_
+        A 2D array containing the standard deviation of the white light image.
+        Only used for the QA plot at present. 
     whitelight_bpm : `numpy.ndarray`_, bool
         A 2D array containing a bad pixel mask for the white light image.        
     dspat : float
@@ -1543,6 +1635,12 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
 
             - ``'ivar'``: Use inverse variance weighting. This is not well
                 tested and should probably be deprecated.
+        fwhm : float, optional
+            FWHM of the PSF in arcseconds. Use to determine the degree of smoothing of the whitelight image, the
+            kernel size for the initial object finding, and the bounds of the parameters for the 2D Gaussian fit. 
+            Default is 1.5 arcseconds.
+        show_qa : bool, optional
+            If True, show the object detection QA plot in ginga. Default is False. 
 
     Returns
     -------
@@ -1570,10 +1668,14 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                    ra_min=ra_min, ra_max=ra_max, dec_min=dec_min, dec_max=dec_max, wave_min=wave_min, wave_max=wave_max)
 
     # Find the location of the object with the highest S/N in the combined white light image
-    fwhm = 1.0
     platescale = dspat*units.deg.to(units.arcsec)
-    popt, pcov, model, obj_position = fitGaussian2D(
+    popt, pcov, model, init_obj_position = fitGaussian2D(
         whitelight_img, gpm=np.logical_not(whitelight_bpm), fwhm = fwhm/platescale, norm=False)
+    gaussian_position = popt[1], popt[2]
+    if show_qa: 
+        whitelight_objfind_qa(whitelight_img, utils.inverse(np.square(whitelight_sigma)), 
+                                np.logical_not(whitelight_bpm), model, gaussian_position, 
+                                init_obj_position, channel_prefix = f'Weights_')
 
     
     # OLD METHOD
@@ -1582,12 +1684,12 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     # TODO: Taking the maximum pixel of the whitelight image is extremely brittle to the case where
     #  their are hot pixels in the white light image, which there are plenty of since the edges of the slits are very
     #  poorly behaved.
-    msgs.info("Highest S/N object located at spaxel (x, y) = {0:.2f}, {1:.2f}".format(obj_position[0], obj_position[1]))
+    msgs.info("Highest S/N object located at spaxel (x, y) = {0:.2f}, {1:.2f}".format(gaussian_position[0], gaussian_position[1]))
 
     # Make the bin edges to be at +/- 1 pixels around the maximum (i.e. summing 9 pixels total)
     numwav = int((_wave_max - _wave_min) / dwv)
-    xbins = np.array([obj_position[0]-1, obj_position[0]+2]) - 0.5
-    ybins = np.array([obj_position[1]-1, obj_position[1]+2]) - 0.5
+    xbins = np.array([gaussian_position[0]-1, gaussian_position[0]+2]) - 0.5
+    ybins = np.array([gaussian_position[1]-1, gaussian_position[1]+2]) - 0.5
     spec_bins = np.arange(1 + numwav) - 0.5
     bins = (xbins, ybins, spec_bins)
 
@@ -2066,7 +2168,9 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
                 this_dec_int = dec_spl(spatpos_subpix)
                 # Now apply the DAR correction and any user-supplied offsets
                 this_ra_int += ra_corr + _ra_offset[fr]
-                this_dec_int += dec_corr + _dec_offset[fr]
+                this_dec_int += dec_corr - _dec_offset[fr]
+                # TODO: Hack to fix bug for KCWI. I suspect the WCS is being set incorrectly
+                #this_dec_int += dec_corr + _dec_offset[fr]
                 # Convert world coordinates to voxel coordinates, then histogram
                 sslo = ss * num_subpixels
                 sshi = (ss + 1) * num_subpixels
