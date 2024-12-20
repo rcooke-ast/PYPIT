@@ -147,21 +147,20 @@ as a function of wavelength. In some situations, the object trace is poorly
 determined by the peak location, and the code will fail to trace the object
 correctly. For example, if the slit edges are not well-defined, the object's
 position relative to the slit edges is also poorly defined, and the object trace
-is difficult to determine. In these cases, the user can attempt to iterate
-the object tracing by using a relatively low order polynomial in combination
-with an iterative fit, as follows
+is difficult to determine. The default is to perform several iterations (typically 9)
+but for some cases this is insufficient. In these cases, the user can attempt to
+increase the number of iterations to improve the object tracing, in combination with
+a relatively low order polynomial, as follows
 
 .. code-block:: ini
 
     [reduce]
         [[findobj]]
-            find_numiterfit = 10
+            find_numiterfit = 100
             trace_npoly = 4
 
-Note that the default value is typically ``trace_npoly=5``. Also note that the
-object tracing will break if successive iterations yields the same object trace
-to within 0.1 pixels. If you notice a relatively poor object trace, sometimes in
-combination with the object counts being masked, an iterative fit may help to
+Note that the default value is typically ``trace_npoly=5``. If you notice a relatively poor object trace, sometimes in
+combination with the object counts being masked, increasing the number of iterations may help to
 resolve your problem. If, on the other hand, your object is relatively faint, you
 may benefit from using the trace of a standard star (this is the default behaviour),
 and you can provide a 1D spectrum of a previously reduced standard star with the

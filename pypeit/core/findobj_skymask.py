@@ -168,7 +168,7 @@ def ech_findobj_ineach_order(
     det='DET01', inmask=None, std_trace=None, ncoeff=5, 
     hand_extract_dict=None,
     box_radius=2.0, fwhm=3.0,
-    use_user_fwhm=False, maxdev=2.0, nperorder=2, numiterfit=1,
+    use_user_fwhm=False, maxdev=2.0, nperorder=2, numiterfit=9,
     extract_maskwidth=3.0, snr_thresh=10.0,
     specobj_dict=None, trim_edg=(5,5),
     show_peaks=False, show_single_fits=False,
@@ -1040,7 +1040,7 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
                 nabove_min_snr=2, pca_explained_var=99.0, 
                 box_radius=2.0, fwhm=3.0,
                 use_user_fwhm=False, maxdev=2.0, 
-                nperorder=2, numiterfit=1,
+                nperorder=2, numiterfit=9,
                 extract_maskwidth=3.0, snr_thresh=10.0,
                 specobj_dict=None, trim_edg=(5,5),
                 show_peaks=False, show_fits=False, 
@@ -1505,7 +1505,7 @@ def get_fwhm(fwhm_in, nsamp, smash_peakflux, spat_fracpos, flux_smash_smth):
 def objs_in_slit(image, ivar, thismask, slit_left, slit_righ, 
                  inmask=None, fwhm=3.0,
                  sigclip_smash=5.0, use_user_fwhm=False, boxcar_rad=7.,
-                 maxdev=2.0, numiterfit=1, spec_min_max=None, hand_extract_dict=None, std_trace=None,
+                 maxdev=2.0, numiterfit=9, spec_min_max=None, hand_extract_dict=None, std_trace=None,
                  ncoeff=5, nperslit=None, snr_thresh=10.0, trim_edg=(5,5),
                  extract_maskwidth=4.0, specobj_dict=None, find_min_max=None,
                  show_peaks=False, show_fits=False, show_trace=False,
@@ -1595,8 +1595,6 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
             used to reject bad pixels in trace fitting.
         numiterfit (:obj:`int`, optional):
             Number of iterations to use in the iterative trace fitting.
-            The number of iterations will be reduced if the fit has converged
-            to a value less than 0.1 pixels over the entire trace.
         spec_min_max (:obj:`tuple`, optional):
             2-tuple defining the minimum and maximum pixel in the spectral
             direction with useable data for this slit/order.  If None, the
@@ -1676,11 +1674,12 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
         detected.
     """
 
-    #debug_all=True
+    debug_all = False
     if debug_all:
-        show_peaks=True
+        show_peaks = True
         show_fits = True
         show_trace = True
+    show_fits=True
 
     if specobj_dict is None:
         specobj_dict = dict(SLITID=999, DET='DET01', OBJTYPE='unknown', PYPELINE='MultiSlit')
@@ -1920,20 +1919,13 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
         xinit_fweight = np.copy(sobjs.TRACE_SPAT.T).astype(float)
         spec_mask = (spec_vec >= spec_min_max_out[0]) & (spec_vec <= spec_min_max_out[1])
         trc_inmask = np.outer(spec_mask, np.ones(len(sobjs), dtype=bool))
-        xfit_fweight = fit_trace(image, xinit_fweight, ncoeff, bpm=np.invert(inmask), maxshift=1.,
+        xfit_fweight = fit_trace(image, xinit_fweight, ncoeff, bpm=np.invert(inmask), maxshift=1., niter=numiterfit,
                                  trace_bpm=np.invert(trc_inmask), fwhm=fwhm, maxdev=maxdev,
                                  idx=sobjs.NAME, debug=show_fits)[0]
         xinit_gweight = np.copy(xfit_fweight)
-        for nn in range(numiterfit):
-            xfit_gweight = fit_trace(image, xinit_gweight, ncoeff, bpm=np.invert(inmask), maxshift=1.,
-                                     trace_bpm=np.invert(trc_inmask), fwhm=fwhm, maxdev=maxdev,
-                                     weighting='gaussian', idx=sobjs.NAME, debug=show_fits)[0]
-            maxdev = np.max(np.abs(xfit_gweight-xinit_gweight))
-            xinit_gweight = np.copy(xfit_gweight)
-            if maxdev <= tolerance:
-                break
-        if maxdev > tolerance:
-            msgs.warn('Trace fitting did not converge.  Check the fits.')
+        xfit_gweight = fit_trace(image, xinit_gweight, ncoeff, bpm=np.invert(inmask), maxshift=1., niter=numiterfit,
+                                 trace_bpm=np.invert(trc_inmask), fwhm=fwhm, maxdev=maxdev,
+                                 weighting='gaussian', idx=sobjs.NAME, debug=show_fits)[0]
 
         # assign the final trace
         for iobj in range(nobj_reg):

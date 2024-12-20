@@ -4206,10 +4206,9 @@ class FindObjPar(ParSet):
         dtypes['find_maxdev'] = [int, float]
         descr['find_maxdev'] = 'Maximum deviation of pixels from polynomial fit to trace used to reject bad pixels in trace fitting.'
 
-        defaults['find_numiterfit'] = 1
+        defaults['find_numiterfit'] = 9
         dtypes['find_numiterfit'] = int
-        descr['find_numiterfit'] = 'Number of iterations to perform on the trace fitting. If the trace fitting ' \
-                                   'has converged, the number of iterations will be less than this number.'
+        descr['find_numiterfit'] = 'Number of iterations to perform on the trace fitting.'
 
         defaults['find_fwhm'] = 5.0
         dtypes['find_fwhm'] = [int, float]
