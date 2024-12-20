@@ -168,3 +168,110 @@ class ManualExtractionObj(datamodel.DataContainer):
         # Return
         return manual_extract_dict
 
+
+
+class ManualCubeExtractionObj(datamodel.DataContainer):
+    """
+    A data container holding the arguments for how to perform the
+    manual extraction of a spectrum from a datacube with 
+    pypeit_extract_datacube.
+    
+    To perform a set of user-defined extractions on a datacube, a list of these 
+    objects is created in the .extract file which can be 
+    input to pypeit_extract_datacube with the -e option. 
+
+    The datamodel attributes are:
+
+    .. include:: ../include/class_datamodel_manual_cube_extractionobj.rst
+
+    Args:
+        spatx (`numpy.ndarray`_): Array of spatial positions to hand extract
+        spaty (`numpy.ndarray`_): Array of spectral positions to hand extract
+        fwhm (`numpy.ndarray`_): Array of FWHM for hand extraction in arcserconds.  
+            This must be aligned with spatx and spaty.
+        boxcar_rad (`numpy.ndarray`_, optional): Array of boxcar_radii for hand extraction. 
+            This must be aligned with spatx and spaty.
+            It is to be arcsec and is optional. 
+
+    """
+    version = '1.1.0'
+
+    datamodel = {
+        'spatx': dict(otype=np.ndarray, atype=np.floating, 
+                    descr='Cube spatial x positions to hand extract'),
+        'spaty': dict(otype=np.ndarray, atype=np.floating, 
+                    descr='Cube spatial y positions to hand extract'),
+        'fwhm': dict(otype=np.ndarray, atype=np.floating, 
+                    descr='FWHMs for hand extractions in arcseconds'),
+        'boxcar_rad': dict(otype=np.ndarray, atype=np.floating, 
+                    descr='Boxcar radius for hand extractions in arcseconds (optional)'),
+    }
+
+    @classmethod
+    def parse(cls, inp: str):
+        """Generate the object from a string input from the manual parameter in the parset
+
+        Args:
+            inp (str):
+                String specifying the manual aperture: ``spatx:spaty:fwhm``;
+                e.g., ``25.6:10.2:1.1``
+
+        Returns:
+            ManualExtractionObj:
+        """
+        # Generate a dict
+        idict = dict(spatx=[], spaty=[], fwhm=[], boxcar_rad=[])
+        m_es = inp.split(';')
+        for m_e in m_es:
+            parse = m_e.split(':')
+            idict['spatx'] += [float(parse[0])]
+            idict['spaty'] += [float(parse[1])]
+            idict['fwhm'] += [float(parse[2])]
+
+            # Boxcar?
+            if len(parse) >= 4:
+                idict['boxcar_rad'] += [float(parse[3])]
+            else:
+                idict['boxcar_rad'] += [-1.]
+
+        # Build me
+        return cls(spatx=np.array(idict['spatx']), 
+                   spaty=np.array(idict['spaty']),
+                   fwhm=np.array(idict['fwhm']),
+                   boxcar_rad=np.array(idict['boxcar_rad']))
+
+    def __init__(self, spatx=None, spaty=None, fwhm=None, boxcar_rad=None):
+        # Parse
+        args, _, _, values = inspect.getargvalues(inspect.currentframe())
+        d = dict([(k,values[k]) for k in args[1:]])
+        # Setup the DataContainer
+        datamodel.DataContainer.__init__(self, d=d)
+
+    def _validate(self):
+        """Validate
+
+        A couple of quick checks..
+
+        Raises:
+            ValueError: Raised if one of the arrays is not set or if they don't have the same length
+        """
+        if len(self.spatx) != len(self.spaty):
+            raise ValueError("spatx and spaty not of the same length")
+        if len(self.fwhm) != len(self.spatx):
+            raise ValueError("FWHM and spatx and spaty not of the same length")
+
+
+    def to_dict(self):
+        """
+        Repackage into a dict for the extraction code
+
+        Returns:
+            dict or None: To be passed into datacube.extract_point_source
+
+        """
+        # Fill 
+        manual_extract_dict = {}
+        for key in ['spatx', 'spaty', 'fwhm', 'boxcar_rad']:
+            manual_extract_dict[key] = self[key]
+        # Return
+        return manual_extract_dict

@@ -364,14 +364,20 @@ class AlignmentSplines:
                                                      tilts * (self.nspec - 1), method='linear')
         self.build_splines()
 
-    def build_splines(self):
+    def build_splines(self, verbose=False):
         """
         Build the interpolation transforms for each slit
+        
+        Parameters
+        ----------
+        verbose : bool, optional
+            If True, print out information about the progress of the function.
         """
         spldict = dict(kind='linear', bounds_error=False, fill_value="extrapolate")
         ycoord = np.arange(self.nspec)
         for sl in range(self.nslit):
-            msgs.info("Calculating astrometric transform of slit {0:d}/{1:d}".format(sl+1, self.nslit))
+            if verbose: 
+                msgs.info("Calculating astrometric transform of slit {0:d}/{1:d}".format(sl+1, self.nslit))
             xlr, tlr = np.zeros((self.nspec, 2)), np.zeros((self.nspec, 2))
             eval_trim = 2  # This evaluates the slit length inside the actual slit edges, due to edge effects.
             for sp in range(self.nspec):

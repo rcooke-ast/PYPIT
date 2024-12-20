@@ -4,6 +4,7 @@ Module containing routines used by 3D datacubes.
 .. include:: ../include/links.rst
 """
 
+from pathlib import Path
 import os
 import copy
 import inspect
@@ -19,6 +20,7 @@ from pypeit import alignframe, datamodel, flatfield, io, sensfunc, spec2dobj, ut
 from pypeit.core.flexure import calculate_image_phase
 from pypeit.core import datacube, extract, flux_calib, parse, combine 
 from pypeit.spectrographs.util import load_spectrograph
+from pypeit.manual_extract import ManualCubeExtractionObj
 
 
 from IPython import embed
@@ -219,7 +221,7 @@ class DataCube(datamodel.DataContainer):
             self._ivar = utils.inverse(self.sig**2)
         return self._ivar
 
-    def extract_spec(self, parset, outname=None, boxcar_radius=None, overwrite=False):
+    def extract_spec(self, parset, outname=None, boxcar_radius=None, overwrite=False, debug=False):
         """
         Extract a spectrum from the datacube
 
@@ -235,16 +237,22 @@ class DataCube(datamodel.DataContainer):
             Overwrite any existing files
         """
         # Extract the spectrum
-        fwhm = parset['findobj']['find_fwhm'] if parset['extraction']['use_user_fwhm'] else None
+        optfwhm = parset['findobj']['find_fwhm'] if parset['extraction']['use_user_fwhm'] else None
+        
+        if parset['cube']['manual'] is not None and len(parset['cube']['manual']) > 0:
+            manual_dict= ManualCubeExtractionObj.parse(parset['cube']['manual']).to_dict()
+            manual_position = (manual_dict['spatx'][0], manual_dict['spaty'][0])
+        else:
+            manual_position = None
 
         # Datacube's are counts/second, so set the exposure time to 1
         exptime = 1.0
         # TODO :: Avoid transposing these large cubes
-        sobjs, spec2d = datacube.extract_point_source(self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs,
-                                              exptime=exptime, 
-                                              fluxed=self.fluxed, boxcar_radius=boxcar_radius,
-                                              optfwhm=fwhm, whitelight_range=parset['cube']['whitelight_range'], 
-                                              spectrograph = self.spectrograph)
+        sobjs, spec2d = datacube.extract_point_source(
+            self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs, exptime, 
+            whitelight_range=parset['cube']['whitelight_range'], fluxed=self.fluxed, 
+            boxcar_radius=boxcar_radius, optfwhm=optfwhm, manual_position=manual_position, 
+            spectrograph = self.spectrograph, debug=debug)
         # Save the extracted spectrum
         file_suffix = self.filename if outname is None else outname
         spec1d_filename = 'spec1d_' + file_suffix
@@ -368,7 +376,8 @@ class CoAdd3D:
     """
     # Superclass factory method generates the subclass instance
     @classmethod
-    def get_instance(cls, spec2dfiles, par, skysub_frame=None, sensfile=None, scale_corr=None, grating_corr=None,
+    def get_instance(cls, spec2dfiles, par, 
+                     output_dir=None, skysub_frame=None, sensfile=None, scale_corr=None, grating_corr=None,
                      ra_offsets=None, dec_offsets=None, spectrograph=None, det=1,
                      overwrite=False, show=False, debug=False):
         """
@@ -385,11 +394,14 @@ class CoAdd3D:
         """
         return next(c for c in cls.__subclasses__()
                     if c.__name__ == (spectrograph.pypeline + 'CoAdd3D'))(
-                        spec2dfiles, par, skysub_frame=skysub_frame, sensfile=sensfile, scale_corr=scale_corr,
+                        spec2dfiles, par, 
+                        output_dir=output_dir, 
+                        skysub_frame=skysub_frame, sensfile=sensfile, scale_corr=scale_corr,
                         grating_corr=grating_corr, ra_offsets=ra_offsets, dec_offsets=dec_offsets,
                         spectrograph=spectrograph, det=det, overwrite=overwrite, show=show, debug=debug)
 
-    def __init__(self, spec2dfiles, par, skysub_frame=None, sensfile=None, scale_corr=None, grating_corr=None,
+    def __init__(self, spec2dfiles, par, 
+                 output_dir=None, skysub_frame=None, sensfile=None, scale_corr=None, grating_corr=None,
                  ra_offsets=None, dec_offsets=None, spectrograph=None, det=None,
                  overwrite=False, show=False, debug=False):
         """
@@ -403,6 +415,9 @@ class CoAdd3D:
                 spectrograph (see
                 :func:`~pypeit.spectrographs.spectrograph.Spectrograph.default_pypeit_par`
                 for the relevant spectrograph class).
+            output_dir (:obj: str, optional):
+                The directory for the output files. If None, the output files are written to the
+                directory in which the class is run. 
             skysub_frame (:obj:`list`, optional):
                 If not None, this should be a list of frames to use for the sky subtraction of each individual
                 entry of spec2dfiles. It should be the same length as spec2dfiles.
@@ -440,6 +455,7 @@ class CoAdd3D:
         self.spec2d = spec2dfiles
         self.numfiles = len(spec2dfiles)
         self.par = par
+        self.output_dir = output_dir
         self.overwrite = overwrite
         self.chk_version = self.par['rdx']['chk_version']
         # Extract some parsets for simplicity
@@ -578,6 +594,49 @@ class CoAdd3D:
         self.skyImgDef, self.skySclDef = None, None  # This is the default behaviour (i.e. to use the "image" for the sky subtraction)
         self.set_default_skysub()
 
+
+    @staticmethod
+    def output_paths(spec2d_files, par, coadd_dir=None):
+        """
+        Construct the names and ensure the existence of the science and QA output directories.
+
+        Args:
+            spec2d_files (:obj:`list`):
+                The list of PypeIt spec2d files to be coadded.  The top-level
+                directory for the coadd3d output directories is assumed to be
+                same as used by the basic reductions.  For example, if one of
+                the spec2d files is
+                ``/path/to/reductions/Science/spec2d_file.fits``, the parent
+                directory for the coadd2d directories is
+                ``/path/to/reductions/``.
+            par (:class:`~pypeit.par.pypeitpar.PypeItPar`):
+                Full set of parameters.  The only used parameters are
+                ``par['rdx']['scidir']`` and ``par['rdx']['qadir']``.  WARNING:
+                This also *alters* the value of ``par['rdx']['qadir']``!!
+            coadd_dir (:obj:`str`, optional):
+                Path to the directory to use for the coadd3d output.
+                If None, the parent of the science directory is used.
+
+        Returns:
+            :obj:`tuple`: Two strings with the names of (1) the science output
+            directory and (2) the QA output directory.  The function also
+            creates both directories if they do not exist.
+        """
+        # Science output directory
+        if coadd_dir is not None:
+            pypeit_scidir = Path(coadd_dir).absolute() / 'Science'
+        else:
+            pypeit_scidir = Path(spec2d_files[0]).parent
+        coadd_scidir = pypeit_scidir.parent / f"{par['rdx']['scidir']}_cube"
+        if not coadd_scidir.exists():
+            coadd_scidir.mkdir(parents=True)
+        # QA directory
+        par['rdx']['qadir'] += '_cube'
+        qa_path = pypeit_scidir.parent / par['rdx']['qadir'] / 'PNGs'
+        if not qa_path.exists():
+            qa_path.mkdir(parents=True)
+        return str(coadd_scidir), str(qa_path)
+
     def check_outputs(self):
         """
         Check if any of the intended output files already exist. This check should be done near the
@@ -585,8 +644,8 @@ class CoAdd3D:
         files won't be overwritten.
         """
         if self.combine:
-            outfile = datacube.get_output_filename("", self.cubepar['output_filename'], self.combine)
-            out_whitelight = datacube.get_output_whitelight_filename(outfile)
+            outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], self.combine)
+            out_whitelight = datacube.get_output_whitelight_filename(self.output_dir, outfile)
             if os.path.exists(outfile) and not self.overwrite:
                 msgs.error("Output filename already exists:"+msgs.newline()+outfile)
             if os.path.exists(out_whitelight) and self.cubepar['save_whitelight'] and not self.overwrite:
@@ -594,16 +653,16 @@ class CoAdd3D:
         else:
             # Finally, if there's just one file, check if the output filename is given
             if self.numfiles == 1 and self.cubepar['output_filename'] != "":
-                outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
-                out_whitelight = datacube.get_output_whitelight_filename(outfile)
+                outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], True, -1)
+                out_whitelight = datacube.get_output_whitelight_filename(self.output_dir, outfile)
                 if os.path.exists(outfile) and not self.overwrite:
                     msgs.error("Output filename already exists:" + msgs.newline() + outfile)
                 if os.path.exists(out_whitelight) and self.cubepar['save_whitelight'] and not self.overwrite:
                     msgs.error("Output filename already exists:" + msgs.newline() + out_whitelight)
             else:
                 for ff in range(self.numfiles):
-                    outfile = datacube.get_output_filename(self.spec2d[ff], self.cubepar['output_filename'], self.combine, ff+1)
-                    out_whitelight = datacube.get_output_whitelight_filename(outfile)
+                    outfile = datacube.get_output_filename(self.output_dir, self.spec2d[ff], self.cubepar['output_filename'], self.combine, ff+1)
+                    out_whitelight = datacube.get_output_whitelight_filename(self.output_dir, outfile)
                     if os.path.exists(outfile) and not self.overwrite:
                         msgs.error("Output filename already exists:" + msgs.newline() + outfile)
                     if os.path.exists(out_whitelight) and self.cubepar['save_whitelight'] and not self.overwrite:
@@ -911,10 +970,12 @@ class SlicerIFUCoAdd3D(CoAdd3D):
         - White light images are also produced, if requested.
 
     """
-    def __init__(self, spec2dfiles, par, skysub_frame=None, sensfile=None, scale_corr=None, grating_corr=None,
+    def __init__(self, spec2dfiles, par, 
+                 output_dir=None, skysub_frame=None, sensfile=None, scale_corr=None, grating_corr=None,
                  ra_offsets=None, dec_offsets=None, spectrograph=None, det=1,
                  overwrite=False, show=False, debug=False):
-        super().__init__(spec2dfiles, par, skysub_frame=skysub_frame, sensfile=sensfile,
+        super().__init__(spec2dfiles, par, 
+                         output_dir=output_dir, skysub_frame=skysub_frame, sensfile=sensfile,
                          scale_corr=scale_corr, grating_corr=grating_corr,
                          ra_offsets=ra_offsets, dec_offsets=dec_offsets, spectrograph=spectrograph, det=det,
                          overwrite=overwrite, show=show, debug=debug)
@@ -1218,9 +1279,9 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             if not self.combine and not self.align:
                 # Get the output filename
                 if self.numfiles == 1 and self.cubepar['output_filename'] != "":
-                    outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
+                    outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], True, -1)
                 else:
-                    outfile = datacube.get_output_filename(fil, self.cubepar['output_filename'], self.combine, ff + 1)
+                    outfile = datacube.get_output_filename(self.output_dir, fil, self.cubepar['output_filename'], self.combine, ff + 1)
                 # Get the coordinate bounds
                 slitlength = int(np.round(np.median(slits.get_slitlengths(median=True))))
                 numwav = int((np.max(waveimg) - wave0) / dwv)
@@ -1273,16 +1334,27 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             self.all_align.append(alignSplines)
             self.all_dar.append(darcorr)
 
-    def run_align(self):
+    def run_align(self, fwhm=1.0):
         """
-        This routine aligns multiple cubes by using manual input offsets or by cross-correlating white light images.
+        This routine aligns multiple cubes by using manual input offsets or 
+        by cross-correlating white light images.
+        
+        Parameters
+        ----------
+        fwhm (float): 
+            The full-width half-maximum of the PSF in arcseconds. This is used only if the
+            offsets are computed from point source positions. 
 
-        Returns:
-            `numpy.ndarray`_: A new set of RA values that have been aligned
-            `numpy.ndarray`_: A new set of Dec values that has been aligned
+        Returns
+        -------
+        ra_offsets ( `numpy.ndarray`_:)
+            A new set of RA values that have been aligned
+        dec_offsets ( `numpy.ndarray`_:)
+            A new set of Dec values that have been aligned            
         """
         # Grab cos(dec) for convenience
         cosdec = np.cos(np.mean(self.ifu_dec[0]) * np.pi / 180.0)
+        platescale = (self._dspat*units.deg).to(units.arcsec).value
         # Initialize the RA and Dec offset arrays
         ra_offsets, dec_offsets = [0.0]*self.numfiles, [0.0]*self.numfiles
         # Register spatial offsets between all frames
@@ -1312,14 +1384,14 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                                         specname=self.specname)
                 if voxedge[2].size != 2:
                     msgs.error("Spectral range for WCS is incorrect for white light image")
-
-                wl_imgs = datacube.generate_image_subpixel(image_wcs, voxedge, self.all_sci, self.all_ivar, self.all_wave,
-                                                           slitid_img_gpm, self.all_wghts, self.all_wcs,
-                                                           self.all_tilts, self.all_slits, self.all_align, self.all_dar,
-                                                           ra_offsets, dec_offsets,
-                                                           spec_subpixel=self.spec_subpixel,
-                                                           spat_subpixel=self.spat_subpixel,
-                                                           slice_subpixel=self.slice_subpixel)
+                
+                
+                wl_imgs, sig_imgs, bpm_imgs = datacube.generate_image_subpixel(
+                    image_wcs, voxedge, self.all_sci, self.all_ivar, self.all_wave,
+                    slitid_img_gpm, self.all_wghts, self.all_wcs,
+                    self.all_tilts, self.all_slits, self.all_align, self.all_dar,
+                    ra_offsets, dec_offsets, spec_subpixel=self.spec_subpixel,
+                    spat_subpixel=self.spat_subpixel, slice_subpixel=self.slice_subpixel)
                 if reference_image is None:
                     # ref_idx will be the index of the cube with the highest S/N
                     ref_idx = np.argmax(self.weights)
@@ -1329,17 +1401,39 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                     msgs.info("Calculating the spatial translation of each cube relative to user-defined 'reference_image'")
 
                 # Calculate the image offsets relative to the reference image
-                for ff in range(self.numfiles):
-                    # Calculate the shift
-                    ra_shift, dec_shift = calculate_image_phase(reference_image.copy(), wl_imgs[:, :, ff], maskval=0.0)
-                    # Convert pixel shift to degrees shift
-                    ra_shift *= self._dspat/cosdec
-                    dec_shift *= self._dspat
-                    msgs.info("Spatial shift of cube #{0:d}:".format(ff + 1) + msgs.newline() +
-                              "RA, DEC (arcsec) = {0:+0.3f} E, {1:+0.3f} N".format(ra_shift*3600.0, dec_shift*3600.0))
-                    # Store the shift in the RA and DEC offsets in degrees
-                    ra_offsets[ff] += ra_shift
-                    dec_offsets[ff] += dec_shift
+                image_phase=False
+                if image_phase: 
+                    for ff in range(self.numfiles):
+                        # Calculate the shift
+                            ra_shift, dec_shift = calculate_image_phase(
+                                reference_image.copy(), wl_imgs[:, :, ff], maskval=0.0)
+                            # Convert pixel shift to degrees shift
+                            ra_shift *= self._dspat/cosdec
+                            dec_shift *= self._dspat
+                            msgs.info("Spatial shift of cube #{0:d}:".format(ff + 1) + msgs.newline() +
+                                    "RA, DEC (arcsec) = {0:+0.3f} E, {1:+0.3f} N".format(ra_shift*3600.0, dec_shift*3600.0))
+                            # Store the shift in the RA and DEC offsets in degrees
+                            ra_offsets[ff] += ra_shift
+                            dec_offsets[ff] += dec_shift
+                else: 
+                    ra_star = np.zeros(self.numfiles)
+                    dec_star = np.zeros(self.numfiles)
+                    for ff in range(self.numfiles):
+                        popt, pcov, model, init_obj_position = datacube.fitGaussian2D(
+                            wl_imgs[:, :, ff], gpm=np.logical_not(bpm_imgs[:, :, ff]), fwhm = fwhm/platescale, 
+                            norm=False)
+                        ra_star[ff], dec_star[ff] = init_obj_position[0], init_obj_position[1]
+                    ra_offsets = ((ra_star - ra_star[ref_idx])*self._dspat/cosdec).tolist()
+                    dec_offsets = ((dec_star - dec_star[ref_idx])*self._dspat).tolist()
+                    for ff in range(self.numfiles):
+                        msgs.info("Spatial shift of cube #{0:d}:".format(ff + 1) + msgs.newline() +
+                                "RA, DEC (arcsec) = {0:+0.3f} E, {1:+0.3f} N".format(
+                                    ra_offsets[ff]*3600.0, dec_offsets[ff]*3600.0))
+                        
+
+
+                    
+                    
         return ra_offsets, dec_offsets
 
     def compute_weights(self):
@@ -1442,7 +1536,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                                                 np.min(self.mnmx_wv[:, :, 1]),
                                                 self.cubepar['whitelight_range'])
             if self.combine:
-                outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
+                outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], True, -1)
                 # Generate the datacube
                 flxcube, sigcube, bpmcube, normcube, wave = \
                     datacube.generate_cube_subpixel(cube_wcs, vox_edges, self.all_sci, self.all_ivar, self.all_wave,
@@ -1467,10 +1561,10 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                                       wave, self.specname, self.blaze_wave, self.blaze_spec,
                                       sensfunc=sensfunc, fluxed=self.fluxcal)
                 # Note, we only store in the primary header the first spec2d file
-                final_cube.to_file(outfile, primary_hdr=self.all_header[0], hdr=hdr, overwrite=self.overwrite)
+                final_cube.to_file(os.path.join(self.output_dir, outfile), primary_hdr=self.all_header[0], hdr=hdr, overwrite=self.overwrite)
             else:
                 for ff in range(self.numfiles):
-                    outfile = datacube.get_output_filename("", self.cubepar['output_filename'], False, ff)
+                    outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], False, ff)
                     # Generate the datacube
                     flxcube, sigcube, bpmcube, normcube, wave = \
                         datacube.generate_cube_subpixel(cube_wcs, vox_edges,
@@ -1505,14 +1599,15 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                     else:
                         hdr['FLUXUNIT'] = (1, "Flux units -- counts/s/Angstrom/arcsec^2")
                     # Write out the datacube
-                    msgs.info("Saving datacube as: {0:s}".format(outfile))
+                    msgs.info("Saving datacube as: {0:s}".format(str(outfile)))
                     final_cube = DataCube(flxcube, sigcube, bpmcube.astype(np.uint8), wave, self.specname, self.blaze_wave, self.blaze_spec,
                                           sensfunc=sensfunc, fluxed=self.fluxcal)
-                    final_cube.to_file(outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
+                    final_cube.to_file(os.path.join(self.output_dir, outfile), primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
                     # TODO fix this transpose issue
                     ivarcube = utils.inverse(np.square(sigcube))
-                    datacube.make_whitelight(cube_wcs, flxcube.T, ivarcube.T, np.logical_not(bpmcube.T), wave, outfile, 
-                                             whitelight_range=wl_wvrng, overwrite=self.overwrite)
+                    datacube.make_whitelight(
+                        cube_wcs, flxcube.T, ivarcube.T, np.logical_not(bpmcube.T), wave, self.output_dir, outfile, 
+                        whitelight_range=wl_wvrng, overwrite=self.overwrite)
    
                     
 
@@ -1525,14 +1620,16 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             combined_sigma = np.sqrt(var_list_out[0])
             combined_ivar = utils.inverse(var_list_out[0])
             combined_bpm = np.logical_not(combined_gpm)
-            combined_outfile = datacube.get_output_filename("", self.cubepar['output_filename'], True, -1)
-            msgs.info("Saving combined datacube as: {0:s}".format(combined_outfile))
+            combined_outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], True, -1)
+            msgs.info("Saving combined datacube as: {0:s}".format(str(combined_outfile)))
             final_combined_cube = DataCube(combined_cube, combined_sigma, combined_bpm.astype(np.uint8), wave, self.specname, self.blaze_wave, self.blaze_spec,
                                           sensfunc=sensfunc, fluxed=self.fluxcal)
-            final_combined_cube.to_file(combined_outfile, primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
+            final_combined_cube.to_file(os.path.join(self.output_dir, combined_outfile), 
+                                        primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
             # Make combined white light image 
             # TODO fix this transpose issue
-            datacube.make_whitelight(cube_wcs, combined_cube.T, combined_ivar.T, combined_gpm.T, wave, combined_outfile, 
-                                             whitelight_range=wl_wvrng, overwrite=self.overwrite)
+            datacube.make_whitelight(
+                cube_wcs, combined_cube.T, combined_ivar.T, combined_gpm.T, wave, self.output_dir, combined_outfile, 
+                whitelight_range=wl_wvrng, overwrite=self.overwrite)
    
 

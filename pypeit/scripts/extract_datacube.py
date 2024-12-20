@@ -30,6 +30,7 @@ class ExtractDataCube(scriptbase.ScriptBase):
         parser.add_argument('-v', '--verbosity', type=int, default=1,
                             help='Verbosity level between 0 [none] and 2 [all]. Default: 1. '
                                  'Level 2 writes a log with filename extract_datacube_YYYYMMDD-HHMM.log')
+        parser.add_argument("--debug", default=False, action="store_true", help="show debug plots?")
         return parser
 
     @staticmethod
@@ -72,7 +73,8 @@ class ExtractDataCube(scriptbase.ScriptBase):
         tstart = time.time()
 
         # Extract the spectrum
-        extcube.extract_spec(parset['reduce'], outname=outname, boxcar_radius=boxcar_radius, overwrite=args.overwrite)
+        extcube.extract_spec(parset['reduce'], outname=outname, boxcar_radius=boxcar_radius, overwrite=args.overwrite, 
+                            debug=args.debug)
 
         # Report the extraction time
         msgs.info(utils.get_time_string(time.time()-tstart))

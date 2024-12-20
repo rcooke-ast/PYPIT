@@ -19,6 +19,8 @@ from pypeit.core import coadd, extract, flux_calib
 from pypeit import slittrace
 from pypeit.images.imagebitmask import ImageBitMaskArray
 from pypeit.spectrographs.util import load_spectrograph
+from pypeit.display import display
+
 from astropy.stats import sigma_clipped_stats, SigmaClip
 from photutils.detection import DAOStarFinder
 
@@ -106,8 +108,14 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
        of the model.
     pcov : `numpy.ndarray`_
         Corresponding covariance matrix
+    model : `numpy.ndarray`_
+        The 2D Gaussian model evaluated at the input image pixel locations
+    init_obj_position : tuple
+        The initial guess for the object position in the image determined by running
+        DAOStarFinder on the image.        
     """
     _gpm = np.ones_like(image, dtype=bool) if gpm is None else gpm
+    fwhm2sigma = 1.0 / (2 * np.sqrt(2 * np.log(2)))
     # Normalise if requested
     wlscl = np.max(image) if norm else 1.0
     # Setup the fitting params - Estimate a starting point for the fit using a median filter
@@ -119,31 +127,19 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
     else:
         objfind_image = image
     ## Find the objects
-    mean, median, std = sigma_clipped_stats(objfind_image*gpm, sigma=3.0)
+    mean, median, std = sigma_clipped_stats(objfind_image*_gpm, sigma=3.0)
     daofind = DAOStarFinder(fwhm=fwhm, threshold=5.*std, exclude_border=True, brightest=1)
-    sources = daofind(objfind_image - median, mask=np.logical_not(gpm))
+    sources = daofind(objfind_image - median, mask=np.logical_not(_gpm))
     msgs.info('DAOStarFinder brightest source properties')
     for col in sources.colnames:
         if col not in ('id', 'npix'):
             sources[col].info.format = '%.2f'  # for consistent table output
     sources.pprint(max_width=76)
-    idx_max = sources['ycentroid'][0], sources['xcentroid'][0]
+    init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
 
-    if debug:
-        plt.figure(figsize=(10, 8))  # Adjust the size as needed
-        plt.imshow(objfind_image*gpm-median, origin='lower',
-                   interpolation='nearest', cmap='gray', vmin=median-2.0*std, vmax=median+8.0*std)
-        plt.plot(idx_max[1], idx_max[0], 'rx', markersize=10)
-        plt.title(f'Whitelight Source Position: (x={idx_max[1]:.2f}, y={idx_max[0]:.2f})', fontsize=20)
-        plt.show()
-
-    # old code
-    #idx_max = np.unravel_index(np.argmax(med_filt_image), image.shape)
-    initial_guess = (1, idx_max[0], idx_max[1], fwhm/2.35, fwhm/2.35, 0, 0)
-    #bounds = ([0, 0, 0, 0.5, 0.5, -np.pi, -np.inf],
-    #          [np.inf, image.shape[0], image.shape[1], image.shape[0], image.shape[1], np.pi, np.inf])
-    bounds = ([0,      idx_max[0]-fwhm/3.0, idx_max[1]-fwhm/3.0, fwhm/6.0, fwhm/6.0, -np.pi, -np.inf],
-              [np.inf, idx_max[0]+fwhm/3.0, idx_max[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
+    initial_guess = (1, init_obj_position[0], init_obj_position[1], fwhm*fwhm2sigma, fwhm*fwhm2sigma, 0, 0)
+    bounds = ([0,      init_obj_position[0]-fwhm/3.0, init_obj_position[1]-fwhm/3.0, fwhm/6.0, fwhm/6.0, -np.pi, -np.inf],
+              [np.inf, init_obj_position[0]+fwhm/3.0, init_obj_position[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
     # Perform the fit
     # TODO :: May want to generate the image on a finer pixel scale first
     # TODO JFH: The 2D Gaussian fitting should be using the noise and the gpm. This should be
@@ -157,7 +153,7 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, median_filter=False, norm=False, de
     # Generate a best fit model
     model = gaussian2D((xx, yy), *popt).reshape(image.shape) * wlscl
     # Return the fitting results
-    return popt, pcov, model
+    return popt, pcov, model, init_obj_position
 
 
 def dar_fitfunc(radec, coord_ra, coord_dec, datfit, wave, obstime, location, pressure,
@@ -239,8 +235,9 @@ def correct_grating_shift(wave_eval, wave_curr, spl_curr, wave_ref, spl_ref, ord
 
 
 def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
-                         subpixel=20, boxcar_radius=None, fwhm=1.0, optfwhm=None, whitelight_range=None,
-                         fluxed=False, spectrograph='keck_kcrm'):
+                         whitelight_range=None, subpixel=20,
+                         boxcar_radius=None, fwhm=1.0, optfwhm=None, manual_position=None,
+                         fluxed=False, spectrograph='keck_kcrm', debug=False):
     """
     Extract a spectrum of a standard star from a datacube
 
@@ -258,6 +255,14 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         WCS of the datacube
     exptime : float
         Exposure time listed in the header of the datacube
+    whitelight_range (None, list, optional):
+        A two element list that specifies the minimum and maximum
+        wavelengths (in Angstroms) to use when constructing the white light
+        image (format is: [min_wave, max_wave]). If None, the cube will be
+        collapsed over the full wavelength range. If a list is provided an
+        either element of the list is None, then the minimum/maximum
+        wavelength range of that element will be set by the minimum/maximum
+        wavelength of all_wave.
     subpixel : int, optional
         Number of pixels to subpixelate spectrum when creating mask
     boxcar_radius : float, optional
@@ -270,10 +275,16 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         The FWHM of the PSF in arcseconds to be used for a 2D (symmetric) Gaussian spatial profile for optimal extraction.
         The default is None, which means that a non-parametric spatial profile will be used for optimal extraction
         determined from the white light image.
+    manual_position : tuple, optional
+        Manual position of the object in the image, where (x, y) is the spatial pixel position in 
+        the cube. Default is None, which means that the position will be determined from the
+        whitelight image.
     fluxed : bool, optional
         Is the datacube fluxed?
     spectrograph : str or pypeit.spectrographs.spectrograph.Spectrograph, optional
         The spectrograph used to take the data. Default is 'keck_kcrm'
+    debug : bool, optional
+        If True, the function will display debugging images in ginga. Default is False.
 
     Returns
     -------
@@ -323,26 +334,30 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     msgs.info("Making white light image")
     wl_img, wl_ivar, wl_gpm = make_whitelight_fromcube(_flxcube, _ivarcube, _gpmcube, wave=wave,
                                       wavemin=whitelight_range[0], wavemax=whitelight_range[1])
-
-    popt, pcov, model = fitGaussian2D(wl_img, gpm=wl_gpm, fwhm = fwhm/platescale, norm=False)
+    popt, pcov, model, init_obj_position = fitGaussian2D(wl_img, gpm=wl_gpm, fwhm = fwhm/platescale, norm=False)
+    
+    # Object location for extraction 
+    if manual_position is not None:
+        xobj, yobj = manual_position  
+    else: 
+        xobj, yobj = popt[1], popt[2]
+     
+    
+    # Setup the coordinates of the mask
+    x = np.linspace(0, numxx - 1, numxx * subpixel)
+    y = np.linspace(0, numyy - 1, numyy * subpixel)
+    xx, yy = np.meshgrid(x, y, indexing='ij')
+    
+    # Set the radius of the extraction boxcar for the sky determination
     if boxcar_radius is None:
         nsig = 4  # 4 sigma should be far enough... Note: percentage enclosed for 2D Gaussian = 1-np.exp(-0.5 * nsig**2)
         wid = nsig * max(popt[3], popt[4])
     else:
         # Set the user-defined radius
         wid = boxcar_radius / np.sqrt(arcsecSQ)
-    # Set the radius of the extraction boxcar for the sky determination
     msgs.info("Using a boxcar radius of {:0.2f} arcsec".format(wid*np.sqrt(arcsecSQ)))
     widsky = 2 * wid
-
-    # Setup the coordinates of the mask
-    x = np.linspace(0, numxx - 1, numxx * subpixel)
-    y = np.linspace(0, numyy - 1, numyy * subpixel)
-    xx, yy = np.meshgrid(x, y, indexing='ij')
-
-    # Object location
-    xobj, yobj = popt[1], popt[2]
-
+    
     # Generate a mask
     msgs.info("Generating an object mask")
     newshape = (numxx * subpixel, numyy * subpixel)
@@ -529,6 +544,38 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
                                     vel_type=None,
                                     maskdef_designtab=None)
 
+   
+    if debug: 
+        x_max, y_max = wl_img.T.shape
+        mean, med, sigma = sigma_clipped_stats(wl_img[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
+        cut_min = mean - 1.0 * sigma
+        cut_max = mean + 5.0 * sigma
+        viewer, ch_wl = display.show_image(wl_img.T, chname='Whitelight', wcs_match=True, cuts=(cut_min, cut_max))
+        mean_snr, med_snr, sigma_snr = sigma_clipped_stats((wl_img*np.sqrt(wl_ivar))[wl_gpm], sigma_lower=5.0, sigma_upper=5.0)
+        cut_min_snr = mean_snr - 1.0 * sigma_snr
+        cut_max_snr = mean_snr + 5.0 * sigma_snr
+        viewer, ch_snr = display.show_image(wl_img.T*np.sqrt(wl_ivar.T), chname='Whitelight S/N', wcs_match=True,
+                                            cuts=(cut_min_snr, cut_max_snr))
+        viewer, ch_model = display.show_image(model.T, chname='Gaussian Model', wcs_match=True, cuts=(cut_min, cut_max))
+
+        # TODO Add WCS
+        ch_list = [ch_wl, ch_model, ch_snr]
+        for ich, ch in enumerate(ch_list):
+            display.show_points(viewer, ch, [yobj], [xobj], 
+                                color='red', 
+                                legend='Extracted           ; x={:.2f}, y={:.2f}'.format(xobj, yobj),
+                                legend_spec=0.05*x_max, legend_spat=0.5*y_max)
+            display.show_points(viewer, ch, [init_obj_position[1]], [init_obj_position[0]], 
+                                color='green', 
+                                legend='DAOStarFinder ; x={:.2f}, y={:.2f}'.format(init_obj_position[0], init_obj_position[1]),
+                                legend_spec=0.10*x_max, legend_spat=0.5*y_max)
+            if manual_position is not None:
+                display.show_points(viewer, ch, [manual_position[1]], [manual_position[0]], 
+                                color='orange', 
+                                legend='Manual              ; x={:.2f}, y={:.2f}'.format(manual_position[0], manual_position[1]),
+                                legend_spec=0.15*x_max, legend_spat=0.5*y_max)
+        
+
     # Return the specobjs object and the spec2d object
     return sobjs, spec2d
 
@@ -568,19 +615,22 @@ def make_good_skymask(slitimg, tilts):
     return gpm
 
 
-def get_output_filename(fil, par_outfile, combine, idx=1):
+def get_output_filename(output_dir, fil, par_outfile, combine, idx=1):
     """
     Get the output filename of a datacube, given the input
 
-    Args:
-        fil (str):
-            The spec2d filename.
-        par_outfile (str):
-            The user-specified output filename (see cubepar['output_filename'])
-        combine (bool):
-            Should the input frames be combined into a single datacube?
-        idx (int, optional):
-            Index of filename to be saved. Required if combine=False.
+    Parameters
+    ----------
+    output_dir (str):
+        The output directory to save the datacube. 
+    fil (str):
+        The spec2d filename.
+    par_outfile (str):
+        The user-specified output filename (see cubepar['output_filename'])
+    combine (bool):
+        Should the input frames be combined into a single datacube?
+    idx (int, optional):
+        Index of filename to be saved. Required if combine=False.
 
     Returns:
         str: The output filename to use.
@@ -593,22 +643,26 @@ def get_output_filename(fil, par_outfile, combine, idx=1):
     if par_outfile == '':
         return fil.replace('spec2d_', 'spec3d_')
     # Finally, if nothing else, use the output filename as a prefix, and a numerical suffic
-    return os.path.splitext(par_outfile)[0] + f'_{idx:03}.fits'
+    return os.path.join(output_dir, os.path.splitext(par_outfile)[0] + f'_{idx:03}.fits')
 
 
-def get_output_whitelight_filename(outfile):
+def get_output_whitelight_filename(output_dir, outfile):
     """
     Given the output filename of a datacube, create an appropriate whitelight
     fits file name
 
-    Args:
-        outfile (str):
-            The output filename used for the datacube.
+    Parameters
+    ----------
+    output_dir : str
+        The output directory to save the datacube.
+    outfile (str):
+        The output filename used for the datacube.
 
-    Returns:
-        A string containing the output filename to use for the whitelight image.
+    Returns
+    -------
+    A string containing the output filename to use for the whitelight image.
     """
-    return os.path.splitext(outfile)[0] + "_whitelight.fits"
+    return os.path.join(output_dir, os.path.splitext(outfile)[0] + "_whitelight.fits")
 
 
 def get_whitelight_pixels(all_wave, all_slitid, min_wl, max_wl):
@@ -718,7 +772,8 @@ def get_whitelight_range(wavemin, wavemax, wl_range):
     msgs.info("The white light images will cover the wavelength range: {0:.2f}A - {1:.2f}A".format(wlrng[0], wlrng[1]))
     return wlrng
 
-def make_whitelight(output_wcs, flxcube, ivarcube, gpmcube, wave, outfile, whitelight_range=None, overwrite=False):
+def make_whitelight(output_wcs, flxcube, ivarcube, gpmcube, wave, output_dir, outfile, 
+                    whitelight_range=None, overwrite=False):
     """
     Generate a white light image using an input cube and write to a file.
 
@@ -744,6 +799,10 @@ def make_whitelight(output_wcs, flxcube, ivarcube, gpmcube, wave, outfile, white
     wave (`numpy.ndarray`_):
         A 1D array containing the wavelength at each spectral coordinate of the datacube. The
         shape of the wavelength array is (nwave,).
+    outfile (str):
+        The output filename for the datacube.        
+    output_dir (str):
+        The output directory to save the datacube. 
     """
 
     whitelight_wcs = output_wcs.celestial
@@ -759,7 +818,7 @@ def make_whitelight(output_wcs, flxcube, ivarcube, gpmcube, wave, outfile, white
     msgs.info("White light image covers the wavelength range {0:.2f} A - {1:.2f} A".format(
         _whitelight_range[0], _whitelight_range[1]))
     # Get the output filename for the white light image
-    out_whitelight = get_output_whitelight_filename(outfile)
+    out_whitelight = get_output_whitelight_filename(output_dir, outfile)
     whitelight, ivar_whitelight, gpm_whitelight = make_whitelight_fromcube(
         flxcube, ivarcube, gpmcube, wave=wave, wavemin=_whitelight_range[0], wavemax=_whitelight_range[1])
     msgs.info("Saving white light image as: {0:s}".format(out_whitelight))
@@ -1383,7 +1442,7 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
 
     # Generate the white light image
     # NOTE: hard-coding subpixel=1 in both directions for speed, and combining into a single image
-    wl_full = generate_image_subpixel(image_wcs, voxedge, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtsImg,
+    wl_full, wl_sig, wl_bpm = generate_image_subpixel(image_wcs, voxedge, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtsImg,
                                       all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
                                       spec_subpixel=1, spat_subpixel=1, slice_subpixel=1, combine=True,
                                       correct_dar=correct_dar)
@@ -1391,14 +1450,14 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
     # Compute the weights
     return compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                            all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
-                           wl_full, dspat, dwv,
+                           wl_full, wl_bpm, dspat, dwv,
                            ra_min=ra_min, ra_max=ra_max, dec_min=dec_min, dec_max=dec_max, wave_min=wave_min,
                            sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, correct_dar=correct_dar)
 
 
 def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                     all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
-                    whitelight_img, dspat, dwv,
+                    whitelight_img, whitelight_bpm, dspat, dwv,
                     ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
                     sn_smooth_npix=None, weight_method='auto', correct_dar=True):
     r"""
@@ -1440,6 +1499,8 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     whitelight_img : `numpy.ndarray`_
         A 2D array containing a white light image, that was created with the
         input ``all`` arrays.
+    whitelight_bpm : `numpy.ndarray`_, bool
+        A 2D array containing a bad pixel mask for the white light image.        
     dspat : float
         The size of each spaxel on the sky (in degrees)
     dwv : float
@@ -1509,18 +1570,24 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                    ra_min=ra_min, ra_max=ra_max, dec_min=dec_min, dec_max=dec_max, wave_min=wave_min, wave_max=wave_max)
 
     # Find the location of the object with the highest S/N in the combined white light image
-    med_filt_whitelight = signal.medfilt2d(whitelight_img, kernel_size=3)
-    idx_max = np.unravel_index(np.argmax(med_filt_whitelight), med_filt_whitelight.shape)
+    fwhm = 1.0
+    platescale = dspat*units.deg.to(units.arcsec)
+    popt, pcov, model, obj_position = fitGaussian2D(
+        whitelight_img, gpm=np.logical_not(whitelight_bpm), fwhm = fwhm/platescale, norm=False)
+
+    
+    # OLD METHOD
+    #med_filt_whitelight = signal.medfilt2d(whitelight_img, kernel_size=3)
+    #idx_max = np.unravel_index(np.argmax(med_filt_whitelight), med_filt_whitelight.shape)
     # TODO: Taking the maximum pixel of the whitelight image is extremely brittle to the case where
     #  their are hot pixels in the white light image, which there are plenty of since the edges of the slits are very
     #  poorly behaved.
-    #idx_max = np.unravel_index(np.argmax(whitelight_img), whitelight_img.shape)
-    msgs.info("Highest S/N object located at spaxel (x, y) = {0:d}, {1:d}".format(idx_max[0], idx_max[1]))
+    msgs.info("Highest S/N object located at spaxel (x, y) = {0:.2f}, {1:.2f}".format(obj_position[0], obj_position[1]))
 
     # Make the bin edges to be at +/- 1 pixels around the maximum (i.e. summing 9 pixels total)
     numwav = int((_wave_max - _wave_min) / dwv)
-    xbins = np.array([idx_max[0]-1, idx_max[0]+2]) - 0.5
-    ybins = np.array([idx_max[1]-1, idx_max[1]+2]) - 0.5
+    xbins = np.array([obj_position[0]-1, obj_position[0]+2]) - 0.5
+    ybins = np.array([obj_position[1]-1, obj_position[1]+2]) - 0.5
     spec_bins = np.arange(1 + numwav) - 0.5
     bins = (xbins, ybins, spec_bins)
 
@@ -1580,76 +1647,84 @@ def generate_image_subpixel(image_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
     """
     Generate a white light image from the input pixels
 
-    Args:
-        image_wcs (`astropy.wcs.WCS`_):
-            World coordinate system to use for the white light images.
-        bins (tuple):
-            A 3-tuple (x,y,z) containing the histogram bin edges in x,y spatial
-            and z wavelength coordinates
-        sciImg (`numpy.ndarray`_, list):
-            A list of 2D science images, or a single 2D image containing the
-            science data.
-        ivarImg (`numpy.ndarray`_, list):
-            A list of 2D inverse variance images, or a single 2D image
-            containing the inverse variance data.
-        waveImg (`numpy.ndarray`_, list):
-            A list of 2D wavelength images, or a single 2D image containing the
-            wavelength data.
-        slitid_img_gpm (`numpy.ndarray`_, list):
-            A list of 2D slit ID images, or a single 2D image containing the
-            slit ID data.
-        wghtImg (`numpy.ndarray`_, list):
-            A list of 2D weight images, or a single 2D image containing the
-            weight data.
-        all_wcs (`astropy.wcs.WCS`_, list):
-            A list of WCS objects, or a single WCS object containing the WCS
-            information of each image.
-        tilts (`numpy.ndarray`_, list):
-            2D wavelength tilts frame, or a list of tilt frames (see all_idx)
-        slits (:class:`~pypeit.slittrace.SlitTraceSet`, list):
-            Information stored about the slits, or a list of SlitTraceSet (see
-            all_idx)
-        astrom_trans (:class:`~pypeit.alignframe.AlignmentSplines`, list):
-            A Class containing the transformation between detector pixel
-            coordinates and WCS pixel coordinates, or a list of Alignment
-            Splines (see all_idx)
-        all_dar (:class:`~pypeit.coadd3d.DARcorrection`, list):
-            A Class containing the DAR correction information, or a list of DARcorrection
-            classes. If a list, it must be the same length as astrom_trans.
-        ra_offset (:obj:`float`, list):
-            The RA offset to apply to each image, or a list of RA offsets.
-        dec_offset (:obj:`float`, list):
-            The DEC offset to apply to each image, or a list of DEC offsets.
-        spec_subpixel (:obj:`int`, optional):
-            What is the subpixellation factor in the spectral direction. Higher
-            values give more reliable results, but note that the time required
-            goes as (``spec_subpixel * spat_subpixel * slice_subpixel``). The
-            default value is 5, which divides each detector pixel into 5 subpixels
-            in the spectral direction.
-        spat_subpixel (:obj:`int`, optional):
-            What is the subpixellation factor in the spatial direction. Higher
-            values give more reliable results, but note that the time required
-            goes as (``spec_subpixel * spat_subpixel * slice_subpixel``). The
-            default value is 5, which divides each detector pixel into 5 subpixels
-            in the spatial direction.
-        slice_subpixel (:obj:`int`, optional):
-            What is the subpixellation factor in the slice direction. Higher
-            values give more reliable results, but note that the time required
-            goes as (``spec_subpixel * spat_subpixel * slice_subpixel``). The
-            default value is 5, which divides each IFU slice into 5 subpixels
-            in the slice direction.
-        combine (:obj:`bool`, optional):
-            If True, all of the input frames will be combined into a single
-            output. Otherwise, individual images will be generated.
-        correct_dar (:obj:`bool`, optional):
-            If True, the DAR correction will be applied to the input images
-            before generating the white light images. If False, the DAR
-            correction will not be applied.
+    Parameters
+    ----------
+    image_wcs (`astropy.wcs.WCS`_):
+        World coordinate system to use for the white light images.
+    bins (tuple):
+        A 3-tuple (x,y,z) containing the histogram bin edges in x,y spatial
+        and z wavelength coordinates
+    sciImg (`numpy.ndarray`_, list):
+        A list of 2D science images, or a single 2D image containing the
+        science data.
+    ivarImg (`numpy.ndarray`_, list):
+        A list of 2D inverse variance images, or a single 2D image
+        containing the inverse variance data.
+    waveImg (`numpy.ndarray`_, list):
+        A list of 2D wavelength images, or a single 2D image containing the
+        wavelength data.
+    slitid_img_gpm (`numpy.ndarray`_, list):
+        A list of 2D slit ID images, or a single 2D image containing the
+        slit ID data.
+    wghtImg (`numpy.ndarray`_, list):
+        A list of 2D weight images, or a single 2D image containing the
+        weight data.
+    all_wcs (`astropy.wcs.WCS`_, list):
+        A list of WCS objects, or a single WCS object containing the WCS
+        information of each image.
+    tilts (`numpy.ndarray`_, list):
+        2D wavelength tilts frame, or a list of tilt frames (see all_idx)
+    slits (:class:`~pypeit.slittrace.SlitTraceSet`, list):
+        Information stored about the slits, or a list of SlitTraceSet (see
+        all_idx)
+    astrom_trans (:class:`~pypeit.alignframe.AlignmentSplines`, list):
+        A Class containing the transformation between detector pixel
+        coordinates and WCS pixel coordinates, or a list of Alignment
+        Splines (see all_idx)
+    all_dar (:class:`~pypeit.coadd3d.DARcorrection`, list):
+        A Class containing the DAR correction information, or a list of DARcorrection
+        classes. If a list, it must be the same length as astrom_trans.
+    ra_offset (:obj:`float`, list):
+        The RA offset to apply to each image, or a list of RA offsets.
+    dec_offset (:obj:`float`, list):
+        The DEC offset to apply to each image, or a list of DEC offsets.
+    spec_subpixel (:obj:`int`, optional):
+        What is the subpixellation factor in the spectral direction. Higher
+        values give more reliable results, but note that the time required
+        goes as (``spec_subpixel * spat_subpixel * slice_subpixel``). The
+        default value is 5, which divides each detector pixel into 5 subpixels
+        in the spectral direction.
+    spat_subpixel (:obj:`int`, optional):
+        What is the subpixellation factor in the spatial direction. Higher
+        values give more reliable results, but note that the time required
+        goes as (``spec_subpixel * spat_subpixel * slice_subpixel``). The
+        default value is 5, which divides each detector pixel into 5 subpixels
+        in the spatial direction.
+    slice_subpixel (:obj:`int`, optional):
+        What is the subpixellation factor in the slice direction. Higher
+        values give more reliable results, but note that the time required
+        goes as (``spec_subpixel * spat_subpixel * slice_subpixel``). The
+        default value is 5, which divides each IFU slice into 5 subpixels
+        in the slice direction.
+    combine (:obj:`bool`, optional):
+        If True, all of the input frames will be combined into a single
+        output. Otherwise, individual images will be generated.
+    correct_dar (:obj:`bool`, optional):
+        If True, the DAR correction will be applied to the input images
+        before generating the white light images. If False, the DAR
+        correction will not be applied.
 
-    Returns:
-        `numpy.ndarray`_: The white light images for all frames. If combine=True,
-        this will be a single 2D image. Otherwise, it will be a 3D array with
-        dimensions (numra, numdec, numframes).
+    Returns
+    -------
+    wl_imgs (`numpy.ndarray`_):
+        The white light images for all frames. If combine=True, this will be a single 2D image. 
+        Otherwise, it will be a 3D array with dimensions (numra, numdec, numframes).
+    sig_imgs (`numpy.ndarray`_):
+        The standard deviation images for all frames. If combine=True, this will be a single 2D image.
+        Otherwise, it will be a 3D array with dimensions (numra, numdec, numframes).
+    bpm_imgs (`numpy.ndarray`_, type=bool):
+        The bad pixel mask images for all frames. If combine=True, this will be a single 2D image.
+        Otherwise, it will be a 3D array with dimensions (numra, numdec, numframes).
     """
     # Perform some checks on the input -- note, more complete checks are performed in subpixellate()
     _sciImg, _ivarImg, _waveImg, _slitid_img_gpm, _wghtImg, _all_wcs, _tilts, _slits, _astrom_trans, _all_dar, _ra_offset, _dec_offset = \
@@ -1658,28 +1733,33 @@ def generate_image_subpixel(image_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
     # Generate the white light images
     if combine:
         # Subpixellate
-        img, _, _, _ = subpixellate(image_wcs, bins, _sciImg, _ivarImg, _waveImg, _slitid_img_gpm, _wghtImg,
+        img, sigimg, bpmimg, _ = subpixellate(image_wcs, bins, _sciImg, _ivarImg, _waveImg, _slitid_img_gpm, _wghtImg,
                                  _all_wcs, _tilts, _slits, _astrom_trans, _all_dar, _ra_offset, _dec_offset,
                                  spec_subpixel=spec_subpixel, spat_subpixel=spat_subpixel, slice_subpixel=slice_subpixel,
                                  skip_subpix_weights=True, correct_dar=correct_dar)
-        return img[:, :, 0]
+        return img[:, :, 0], sigimg[:, :, 0], bpmimg[:, :, 0]
     else:
         # Prepare the array of white light images to be stored
         numframes = len(_sciImg)
         numra = bins[0].size - 1
         numdec = bins[1].size - 1
         all_wl_imgs = np.zeros((numra, numdec, numframes))
+        all_sig_imgs = np.zeros((numra, numdec, numframes))
+        all_bpm_imgs = np.zeros((numra, numdec, numframes), dtype=bool)
         # Loop through all frames and generate white light images
         for fr in range(numframes):
             msgs.info(f"Creating image {fr + 1}/{numframes}")
             # Subpixellate
-            img, _, _, _ = subpixellate(image_wcs, bins, _sciImg[fr], _ivarImg[fr], _waveImg[fr], _slitid_img_gpm[fr], _wghtImg[fr],
+            img, sigimg, bpmimg, _ = subpixellate(image_wcs, bins, _sciImg[fr], _ivarImg[fr], _waveImg[fr], _slitid_img_gpm[fr], _wghtImg[fr],
                                      _all_wcs[fr], _tilts[fr], _slits[fr], _astrom_trans[fr], _all_dar[fr], _ra_offset[fr], _dec_offset[fr],
                                      spec_subpixel=spec_subpixel, spat_subpixel=spat_subpixel, slice_subpixel=slice_subpixel,
                                      skip_subpix_weights=True, correct_dar=correct_dar)
             all_wl_imgs[:, :, fr] = img[:, :, 0]
+            all_sig_imgs[:, :, fr] = sigimg[:, :, 0]
+            all_bpm_imgs[:, :, fr] = bpmimg[:, :, 0]
+            
         # Return the constructed white light images
-        return all_wl_imgs
+        return all_wl_imgs, all_sig_imgs, all_bpm_imgs
 
 
 def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
@@ -1781,7 +1861,7 @@ def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
     #        msgs.error("Must provide an outfile name if whitelight_range is set")
 
     # Subpixellate
-    flxcube, varcube, bpmcube, normcube = subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
+    flxcube, sigcube, bpmcube, normcube = subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
                                              all_wcs, tilts, slits, astrom_trans, all_dar, ra_offset, dec_offset,
                                              spec_subpixel=spec_subpixel, spat_subpixel=spat_subpixel,
                                              slice_subpixel=slice_subpixel, skip_subpix_weights=skip_subpix_weights,
@@ -1794,14 +1874,14 @@ def generate_cube_subpixel(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_im
 
 
     # TODO :: Avoid transposing these large cubes
-    return flxcube.T, np.sqrt(varcube.T), bpmcube.T, normcube.T, wave
+    return flxcube.T, sigcube.T, bpmcube.T, normcube.T, wave
 
 
 
 def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wghtImg,
                  all_wcs, tilts, slits, astrom_trans, all_dar, ra_offset, dec_offset,
                  spec_subpixel=5, spat_subpixel=5, slice_subpixel=5, skip_subpix_weights=False,
-                 correct_dar=True):
+                 correct_dar=True, verbose=False):
     r"""
     Subpixellate the input data into a datacube. This algorithm splits each
     detector pixel into multiple subpixels and each IFU slice into multiple subslices.
@@ -1889,11 +1969,14 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
         correct_dar (bool, optional):
             If True, the DAR correction will be applied to the datacube. The
             default is True.
+        verbose (bool, optional):
+            If True, the code will print out more information. The default is
+            False.
 
     Returns:
         :obj:`tuple`: Three or four `numpy.ndarray`_ objects containing (1) the
         datacube generated from the subpixellated inputs, (2) the corresponding
-        variance cube, and (3) the corresponding bad pixel mask cube. (4) A cube
+        standard deviation cube, and (3) the corresponding bad pixel mask cube. (4) A cube
         indicating the occupation number of a given pixel TODO: elaborate on this
 
     """
@@ -1931,10 +2014,11 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
         this_wav = _waveImg[fr][this_onslit_gpm]
         # Loop through all slits
         for sl, spatid in enumerate(this_slits.spat_id):
-            if numframes == 1:
-                msgs.info(f"Resampling slit {sl + 1}/{this_slits.nslits}")
-            else:
-                msgs.info(f"Resampling slit {sl + 1}/{this_slits.nslits} of frame {fr + 1}/{numframes}")
+            if verbose: 
+                if numframes == 1:
+                    msgs.info(f"Resampling slit {sl + 1}/{this_slits.nslits}")
+                else:
+                    msgs.info(f"Resampling slit {sl + 1}/{this_slits.nslits} of frame {fr + 1}/{numframes}")
             # Find the pixels on this slit
             this_sl = np.where(this_spatid == spatid)
             wpix = (this_specpos[this_sl], this_spatpos[this_sl])
@@ -1964,7 +2048,7 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
             vox_coord = np.full((numpix, num_all_subpixels, 3), -1, dtype=float)
             # Loop over the subslices
             for ss in range(slice_subpixel):
-                if slice_subpixel > 1:
+                if verbose and slice_subpixel > 1: 
                     # Only print this if there are multiple subslices
                     msgs.info(f"Resampling subslice {ss+1}/{slice_subpixel}")
                 # Generate an RA/Dec image for this subslice
@@ -1991,7 +2075,8 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
             if num_all_subpixels == 1 or skip_subpix_weights:
                 subpix_wght = 1.0
             else:
-                msgs.info("Preparing subpixel weights")
+                if verbose: 
+                    msgs.info("Preparing subpixel weights")
                 vox_index = np.floor(outshape * (vox_coord - binrng[:,0].reshape((1, 1, 3))) /
                                                 (binrng[:,1] - binrng[:,0]).reshape((1, 1, 3))).astype(int)
                 # Convert to a unique index
@@ -2012,7 +2097,7 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
     bpmcube = (normcube == 0) #.astype(np.uint8)
 
     # Return the datacube, variance cube and bad pixel cube
-    return flxcube, varcube, bpmcube, normcube
+    return flxcube, np.sqrt(varcube), bpmcube, normcube
 
 
 

@@ -1623,7 +1623,7 @@ class CubePar(ParSet):
                  ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
                  spatial_delta=None, wave_delta=None, astrometric=None, scale_corr=None,
                  skysub_frame=None, spec_subpixel=None, spat_subpixel=None, slice_subpixel=None,
-                 correct_dar=None):
+                 correct_dar=None, manual=None):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -1830,6 +1830,17 @@ class CubePar(ParSet):
                                 'frame will be used. Note, the sky and science frames do not need to have the same ' \
                                 'exposure time; the sky model will be scaled to the science frame based on the ' \
                                 'relative exposure time.'
+                                
+
+        # manual extraction
+        defaults['manual'] = None
+        dtypes['manual'] = str
+        descr['manual'] = 'Manual extraction parameters for pypeit_extract_datacube. The format is ' \
+                          'spatx:spaty:fwhm:boxcar_radius. ' \
+                          'Multiple manual extractions are semi-colon separated, ' \
+                          'and spatx,specy are spatial x and y position in the datacube.' \
+                          'fwhm is in arcseconds. boxcar_radius is optional and also in arcsec.'                                
+                                
 
         # Instantiate the parameter set
         super(CubePar, self).__init__(list(pars.keys()),
@@ -1848,7 +1859,7 @@ class CubePar(ParSet):
         parkeys = ['slit_spec', 'output_filename', 'sensfile', 'reference_image', 'save_whitelight',
                    'method', 'spec_subpixel', 'spat_subpixel', 'slice_subpixel', 'ra_min', 'ra_max', 'dec_min', 'dec_max',
                    'wave_min', 'wave_max', 'spatial_delta', 'wave_delta', 'weight_method', 'align', 'combine',
-                   'astrometric', 'scale_corr', 'skysub_frame', 'whitelight_range', 'correct_dar']
+                   'astrometric', 'scale_corr', 'skysub_frame', 'whitelight_range', 'correct_dar', 'manual']
 
         badkeys = np.array([pk not in parkeys for pk in k])
         if np.any(badkeys):

@@ -27,6 +27,7 @@ class CoAddDataCube(scriptbase.ScriptBase):
     def main(args):
         import time
 
+        from pathlib import Path
         from pypeit import msgs
         from pypeit import par
         from pypeit import inputfiles
@@ -62,10 +63,22 @@ class CoAddDataCube(scriptbase.ScriptBase):
         scale_corr = coadd3dfile.options['scale_corr']
         sensfile = coadd3dfile.options['sensfile']
         grating_corr = coadd3dfile.options['grating_corr']
+        
+        
+        # Get the paths
+        coadd_scidir, qa_path = map(lambda x : Path(x).absolute(),
+                CoAdd3D.output_paths(coadd3dfile.filenames, parset, coadd_dir=parset['rdx']['redux_path']))
+
+        # Write the par to disk
+        par_outfile = coadd_scidir.parent / f'{parset['reduce']['cube']['output_filename']}_datacube.par'
+        print(f'Writing full parameter set to {par_outfile}.')
+        parset.to_config(par_outfile, exclude_defaults=True, include_descr=False)
 
         # Instantiate CoAdd3d
         tstart = time.time()
-        coadd = CoAdd3D.get_instance(coadd3dfile.filenames, parset, skysub_frame=skysub_frame, sensfile=sensfile,
+        coadd = CoAdd3D.get_instance(coadd3dfile.filenames, parset, 
+                                     output_dir=str(coadd_scidir), 
+                                     skysub_frame=skysub_frame, sensfile=sensfile,
                                      scale_corr=scale_corr, grating_corr=grating_corr,
                                      ra_offsets=ra_offsets, dec_offsets=dec_offsets,
                                      spectrograph=spectrograph, det=args.det, overwrite=args.overwrite)
