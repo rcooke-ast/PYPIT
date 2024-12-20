@@ -395,7 +395,6 @@ class BuildWaveTilts:
         # Key Internals
         self.mask = None
         self.all_trace_dict = [None]*self.slits.nslits
-        self.tilts = None
         # 2D fits are stored as a dictionary rather than list because we will jsonify the dict
         self.all_fit_dict = [None]*self.slits.nslits
         self.steps = []
@@ -838,16 +837,15 @@ class BuildWaveTilts:
             thismask_science = self.slitmask_science == slit_spat
             _spec_eval, _spat_eval = tracewave.fit2tilts_prepareSlit(slits_left[:, slit_idx], slits_right[:, slit_idx],
                                                                      thismask_science, self.spat_flexure[slit_idx, :])
-            self.tilts[thismask_science] = tracewave.fit2tilts(coeff_out, self.par['func2d'],
-                                                               spec_eval=_spec_eval, spat_eval=_spat_eval)
+            tilts = tracewave.fit2tilts(coeff_out, self.par['func2d'], spec_eval=_spec_eval, spat_eval=_spat_eval)
             # Check that the tilts image has values that span a reasonable range
             # TODO: Is this the right threshold?
-            if np.nanmax(self.tilts) - np.nanmin(self.tilts) < 0.8:
+            if np.nanmax(tilts) - np.nanmin(tilts) < 0.8:
                 msgs.warn('Tilts image fit not good. This slit/order will not be reduced!')
                 self.slits.mask[slit_idx] = self.slits.bitmask.turn_on(self.slits.mask[slit_idx], 'BADTILTCALIB')
                 continue
             # Save to final image
-            self.final_tilts[thismask_science] = self.tilts[thismask_science]
+            self.final_tilts[thismask_science] = tilts
 
         if show:
             viewer, ch = display.show_image(self.mstilt.image * (self.slitmask > -1), chname='tilts')
