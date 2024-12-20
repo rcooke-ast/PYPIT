@@ -100,6 +100,7 @@ def weighted_combine(weights, sci_list, var_list, inmask_stack,
 
     shape = img_list_error_check(sci_list, var_list)
 
+
     nimgs = shape[0]
     img_shape = shape[1:]
     #nspec = shape[1]
@@ -123,6 +124,9 @@ def weighted_combine(weights, sci_list, var_list, inmask_stack,
         if sigma_clip_stack is None:
             msgs.error('You must specify sigma_clip_stack; sigma-clipping is based on this array '
                        'and propagated to the arrays to be stacked.')
+        elif not isinstance(sigma_clip_stack, np.ndarray):
+            msgs.error('sigma_clip_stack must be a numpy array')
+
         if sigrej is None:
             # NOTE: If these are changed, make sure to update the doc-string!
             if nimgs == 3:
@@ -162,7 +166,6 @@ def weighted_combine(weights, sci_list, var_list, inmask_stack,
         var_list_out.append(np.sum(var_stack * weights_mask_stack**2, axis=0) * inv_w_sum**2)
     # Was it masked everywhere?
     gpm = np.any(mask_stack, axis=0)
-
     return sci_list_out, var_list_out, gpm, nused
 
 

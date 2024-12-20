@@ -1622,21 +1622,21 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                         cube_wcs, flxcube.T, ivarcube.T, np.logical_not(bpmcube.T), wave, self.output_dir, outfile, 
                         whitelight_range=wl_wvrng, overwrite=self.overwrite)
    
-                    
             # TODO add an if self.align and self.combine block here to combine the datacubes
             sigrej = 3.0
             maxiters = 10                
             sci_list_out, var_list_out, combined_gpm, nused = combine.weighted_combine(
                 weightcube_stack, [flxcube_stack], [varcube_stack],np.logical_not(bpmcube_stack), sigma_clip=True,
-                               sigma_clip_stack=[flxcube_stack], sigrej=sigrej, maxiters=maxiters)
+                               sigma_clip_stack=flxcube_stack, sigrej=sigrej, maxiters=maxiters)
             combined_cube = sci_list_out[0]
             combined_sigma = np.sqrt(var_list_out[0])
             combined_ivar = utils.inverse(var_list_out[0])
             combined_bpm = np.logical_not(combined_gpm)
             combined_outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], True, -1)
             msgs.info("Saving combined datacube as: {0:s}".format(str(combined_outfile)))
-            final_combined_cube = DataCube(combined_cube, combined_sigma, combined_bpm.astype(np.uint8), wave, self.specname, self.blaze_wave, self.blaze_spec,
-                                          sensfunc=sensfunc, fluxed=self.fluxcal)
+            final_combined_cube = DataCube(combined_cube, combined_sigma, combined_bpm.astype(np.uint8), wave, 
+                                           self.specname, self.blaze_wave, self.blaze_spec,
+                                           sensfunc=sensfunc, fluxed=self.fluxcal)
             final_combined_cube.to_file(os.path.join(self.output_dir, combined_outfile), 
                                         primary_hdr=self.all_header[ff], hdr=hdr, overwrite=self.overwrite)
             # Make combined white light image 
@@ -1644,5 +1644,6 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             datacube.make_whitelight(
                 cube_wcs, combined_cube.T, combined_ivar.T, combined_gpm.T, wave, self.output_dir, combined_outfile, 
                 whitelight_range=wl_wvrng, overwrite=self.overwrite)
+
    
 
