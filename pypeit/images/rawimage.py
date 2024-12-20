@@ -678,9 +678,7 @@ class RawImage:
         # correction, so no need to do it again here.
         self.spat_flexure_shift = None
         if self.par['spat_flexure_method'] != "skip" or not np.ma.is_masked(manual_spat_flexure):
-            self.spat_flexure_shift = self.spatial_flexure_shift(slits, method=self.par['spat_flexure_method'],
-                                                                 manual_spat_flexure=manual_spat_flexure,
-                                                                 maxlag=self.par['spat_flexure_maxlag'],
+            self.spat_flexure_shift = self.spatial_flexure_shift(slits, manual_spat_flexure=manual_spat_flexure,
                                                                  debug=debug)
 
         #   - Subtract scattered light... this needs to be done before flatfielding.
@@ -774,7 +772,7 @@ class RawImage:
         return _det, self.image, self.ivar, self.datasec_img, self.det_img, self.rn2img, \
                 self.base_var, self.img_scale, self.bpm
 
-    def spatial_flexure_shift(self, slits, force=False, manual_spat_flexure=np.ma.masked, method="detector", debug=False):
+    def spatial_flexure_shift(self, slits, force=False, manual_spat_flexure=np.ma.masked, debug=False):
         """
         Calculate a spatial shift in the edge traces due to flexure.
 
@@ -794,13 +792,6 @@ class RawImage:
                 from the image data. The only way this value is used is if
                 the user sets the `shift` parameter in their pypeit file to
                 be a float.
-            method (:obj:`str`, optional):
-                Method to use to calculate the spatial flexure shift. Options
-                are 'detector' (default), 'slit', and 'edge'. The 'detector'
-                method calculates the shift for all slits simultaneously, the
-                'slit' method calculates the shift for each slit independently,
-                and the 'edge' method calculates the shift for each slit edge
-                independently.
             debug (:obj:`bool`, optional):
                 Run in debug mode.
 
@@ -835,7 +826,8 @@ class RawImage:
             outdir = str(Path(slits.calib_dir).parent) if slits.calib_dir is not None else None
             qa_outfile = qa.set_qa_filename(basename, 'spat_flexure_qa_corr', out_dir=outdir)
 
-            spat_flexure = flexure.spat_flexure_shift(self.image[0], slits, method=method, bpm=self._bpm[0],
+            spat_flexure = flexure.spat_flexure_shift(self.image[0], slits, bpm=self._bpm[0],
+                                                      method=self.par['spat_flexure_method'],
                                                       maxlag=self.par['spat_flexure_maxlag'],
                                                       sigdetect=self.par['spat_flexure_sigdetect'],
                                                       debug=debug, qa_outfile=qa_outfile,
