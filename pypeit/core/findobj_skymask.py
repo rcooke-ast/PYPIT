@@ -1679,7 +1679,6 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
         show_peaks = True
         show_fits = True
         show_trace = True
-    show_fits=True
 
     if specobj_dict is None:
         specobj_dict = dict(SLITID=999, DET='DET01', OBJTYPE='unknown', PYPELINE='MultiSlit')
