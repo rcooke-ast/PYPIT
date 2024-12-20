@@ -420,3 +420,41 @@ def parse_image_location(inp, spec):
         msgs.error(f'Unable to parse detector identifier in: {inp}')
 
     return (neg, detname) + tuple(float(p) for p in _inp[1:])
+
+
+def fix_config_par_image_location(par):
+    """
+    Fix mosaic image locations as parsed by `configobj`_.
+
+    When, e.g., defining a slit to remove, the user sets:
+
+    .. code-block:: ini
+
+        rm_slits = (1,2,3):1500:331, (1,2,3):1500:635
+
+    The `configobj`_ parser turns this into ``['(1', '2', '3):1500:331', '(1',
+    '2', '3):1500:635']``.  This function converts this back to the expected
+    format: ``['(1,2,3):1500:331', '(1,2,3):1500:635']``.
+
+    Parameters
+    ----------
+    par : :obj:`list`
+        List of strings parsed by `configobj`_.
+
+    Returns
+    -------
+    :obj:`list`
+        The corrected image-location definitions.
+    """
+    # Find the list indices that include the opening and closing parentheses
+    indx = np.where(['(' in p or ')' in p for p in par])[0]
+    if len(indx) == 0:
+        return par
+    if indx[0] != 0 or len(indx) % 2 != 0:
+        # There must always be an open parenthesis in the first list element,
+        # and there must be an even number of elements with either ( or ).
+        # NOTE: This means nested parentheses will not work, neither will mixing
+        # mosaic definitions with single-dector definitions!
+        msgs.error(f'Could not interpret provided parameters: {",".join(par)}.  Check for any '
+                    'unpaired parentheses.')
+    return [','.join(l) for l in np.split(par, (indx+1)[1:-1:2])]

@@ -91,6 +91,7 @@ class ManualExtractionObj(datamodel.DataContainer):
                 msgs.error('Definition of manual extraction aperture does not have the correct '
                            f'number of parameters: {m_e}.')
 
+            # TODO: Why is this spat:spec and not spec:spat like everything else??
             idict['neg'] += [loc[0]]
             idict['detname'] += [loc[1]]
             idict['spat'] += [loc[2]]

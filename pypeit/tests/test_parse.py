@@ -94,3 +94,22 @@ def test_parse_image_location():
     assert len(p) == 4, 'Incorrect number of returned objects'
     assert not p[0], 'Should return that the detector integer is positive'
     assert p[1] == 'DET02', 'Wrong mosaic identifier'
+
+
+def test_join_image_location():
+    # Fix without parentheses (does nothing)
+    par = ['3:1500:331', '3:1500:635']
+    fixed_par = parse.fix_config_par_image_location(par)
+    assert fixed_par == par, 'Should not change parameters if there are no parentheses'
+
+    # Fix with parentheses
+    par = ['(1', '2', '3):1500:331', '(1', '2', '3):1500:635']
+    fixed_par = parse.fix_config_par_image_location(par)
+    assert fixed_par[0] == ','.join(par[:3]), 'Fix is wrong'
+    assert fixed_par[1] == ','.join(par[3:]), 'Fix is wrong'
+
+    # Throw fault for unpaired parentheses
+    par = ['1', '2', '3):1500:331', '(1', '2', '3):1500:635']
+    with pytest.raises(PypeItError):
+        fixed_par = parse.fix_config_par_image_location(par)
+
