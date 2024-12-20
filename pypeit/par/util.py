@@ -100,7 +100,6 @@ def recursive_dict_evaluate(d):
             except PypeItError as e:
                 # The tuple evaluation failed.  Assume that this can be handled
                 # later in the code and leave the dictionary element unaltered.
-                # TODO: Warn the user?
                 pass
             continue
 

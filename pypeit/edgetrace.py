@@ -4183,6 +4183,9 @@ class EdgeTraceSet(calibframe.CalibFrame):
             msgs.error(f'Input to add_user_traces must be a list, not {type(add_traces)}')
 
         if isinstance(add_traces[0], str):
+            # NOTE: Ignores any negatives in the definition of the detector
+            # numbers.  (Negatives are used for manual extractions to select the
+            # negative trace.)
             _add_traces = [list(parse.parse_image_location(at, self.spectrograph)[1:])
                             for at in add_traces]
             _add_traces = [at[1:] for at in _add_traces if at[0] == self.traceimg.detector.name]
