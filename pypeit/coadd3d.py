@@ -1109,7 +1109,8 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             crval_wv = self.cubepar['wave_min'] if self.cubepar['wave_min'] is not None else wave0
             cd_wv = self.cubepar['wave_delta'] if self.cubepar['wave_delta'] is not None else dwv
             self.all_wcs.append(self.spec.get_wcs(spec2DObj.head0, slits, detector.platescale, crval_wv, cd_wv))
-            ra_img, dec_img, minmax = slits.get_radec_image(self.all_wcs[ff], alignSplines, spec2DObj.tilts, flexure=spat_flexure)
+            ra_img, dec_img, minmax = slits.get_radec_image(self.all_wcs[ff], alignSplines, spec2DObj.tilts,
+                                                            spat_flexure=spat_flexure)
 
             # Extract wavelength and delta wavelength arrays from the images
             wave_ext = waveimg[onslit_gpm]
