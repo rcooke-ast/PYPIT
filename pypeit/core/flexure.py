@@ -252,8 +252,8 @@ def spat_flexure_qa(img, slits, shift, gpm=None, vrange=None, outfile=None):
         vrange = None
 
     # TODO: should we use initial or tweaked slits in this plot?
-    left_slits, right_slits, mask_slits = slits.select_edges(initial=True, flexure=None)
-    left_flex, right_flex, mask = slits.select_edges(initial=True, flexure=shift)
+    left_slits, right_slits, mask_slits = slits.select_edges(initial=True, spat_flexure=None)
+    left_flex, right_flex, mask = slits.select_edges(initial=True, spat_flexure=shift)
 
     if debug:
         # where to start and end the plot in the spatial&spectral direction
