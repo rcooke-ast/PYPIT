@@ -74,7 +74,7 @@ def gaussian2D(tup, intflux, xo, yo, sigma_x, sigma_y, theta, offset):
     return gtwod.ravel()
 
 
-def fitGaussian2D(image, gpm=None, fwhm=3.0, mask_edge=5, median_filter=False, norm=False, verbose=False):
+def fitGaussian2D(image, ivar=None, gpm=None, fwhm=3.0, nsigma=5.0, mask_edge=4, median_filter=False, norm=False, verbose=False):
     """
     Fit a 2D Gaussian to an input image. It is recommended that the input image
     is scaled to a maximum value that is ~1, so that all fit parameters are of
@@ -86,12 +86,18 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, mask_edge=5, median_filter=False, n
     ----------
     image : `numpy.ndarray`_
         A 2D input image
+    ivar : `numpy.ndarray`_
+        The inverse variance of the image. Optional. If not passed, the standard deviation computed
+        from the image will be used to compute the inverse variance. Default is None.
     gpm : `numpy.ndarray`_, optional
         A good pixel mask. Pixels that are True are good. Default is None,
     fwhm : float, optional
         The FWHM of the image in pixels. This is used to estimate the initial
         guess for the Gaussian fit, the fit bounds, and the median filter kernel
         width if median filtering is used. Default is 3.0 pixels.
+    nsigma : float, optional
+        The number of sigma to use when determining the threshold for the
+        DAOStarFinder object, i.e. the threshold is nsigma*std_dev.  Default is 5.0.
     mask_edge : int, optional
         The number of pixels to mask at the edges of the image. Default is 5 pixels.
     median_filter : bool, optional
@@ -121,38 +127,63 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, mask_edge=5, median_filter=False, n
         The 2D Gaussian model evaluated at the input image pixel locations
     init_obj_position : tuple
         The initial guess for the object position in the image determined by running
-        DAOStarFinder on the image.        
+        DAOStarFinder on the image. 
+    flux_opt : float
+        The optimally extracted object flux of the brightest source in the image
+    sigma_opt : float
+        The optimally extracted one sigma error of the object flux of the brightest source in the image.       
     """
     _gpm = np.ones_like(image, dtype=bool) if gpm is None else gpm
     fwhm2sigma = 1.0 / (2 * np.sqrt(2 * np.log(2)))
+    sigma = fwhm*fwhm2sigma
     # Normalise if requested
     wlscl = np.max(image) if norm else 1.0
-    # Setup the fitting params - Estimate a starting point for the fit using a median filter
-    if median_filter:
-        int_kernel = np.clip(round(fwhm), 3, None)
-        if int_kernel % 2 == 0:
-            int_kernel += 1 if fwhm > int_kernel else -1
-        objfind_image = signal.medfilt2d(image, kernel_size=int_kernel)
-    else:
-        objfind_image = image
+    if ivar is None: 
+        mean, median, std = sigma_clipped_stats(image[np.logical_not(totmask)], sigma=3.0)
+        _ivar = np.full_like(image, 1.0/std**2)
+    else: 
+        _ivar = ivar
+
     ## Find the objects
     edgemask = np.zeros_like(image, dtype=bool)
     edgemask[:mask_edge, :] = edgemask[-mask_edge:, :] = \
     edgemask[:, :mask_edge] = edgemask[:, -mask_edge:] = True
     totmask = edgemask | np.logical_not(_gpm)
-    mean, median, std = sigma_clipped_stats(objfind_image[np.logical_not(totmask)], sigma=3.0)
-    
+
+    if median_filter:
+        int_kernel = np.clip(round(fwhm), 3, None)
+        if int_kernel % 2 == 0:
+            int_kernel += 1 if fwhm > int_kernel else -1
+        objfind_image = signal.medfilt2d(image, kernel_size=int_kernel)
+        mean_objfind, median_objfind, std_objfind = sigma_clipped_stats(
+            objfind_image[np.logical_not(totmask)], sigma=3.0)
+        ivar_objfind = np.full_like(image, 1.0/std_objfind**2)
+    else:
+        objfind_image = image
+        ivar_objfind = _ivar
+        mean_objfind, median_objfind, std_objfind = sigma_clipped_stats(
+            objfind_image[np.logical_not(totmask)], sigma=3.0)        
+
     # Create a border mask to exclude junk at the edges
-    daofind = DAOStarFinder(fwhm=fwhm, threshold=5.*std, exclude_border=True, brightest=1)
-    sources = daofind(objfind_image - median, mask=totmask)
+    daofind = DAOStarFinder(
+        fwhm=fwhm, threshold=nsigma, sharphi=2.0, 
+        exclude_border=True, brightest=1)
+    sources = daofind((objfind_image - median_objfind)*np.sqrt(ivar_objfind), mask=totmask)
     if verbose: 
         msgs.info('DAOStarFinder brightest source properties')
         for col in sources.colnames:
             if col not in ('id', 'npix'):
                 sources[col].info.format = '%.2f'  # for consistent table output
         sources.pprint(max_width=76)
-    init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
+    if sources is None:
+        display.show_image(objfind_image*np.logical_not(totmask)*np.sqrt(ivar_objfind), 
+                           chname='objfind_image', cuts=(-2.0, 5.0))
+        embed()
+        msgs.error("No sources found in the image. Try lowering the significance threshold, "
+                   f"nsigma = {nsigma:.1f}{msgs.newline()}"
+                    "or adjust the DAOStarFinder parameters.")
 
+    init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
     initial_guess = (1, init_obj_position[0], init_obj_position[1], fwhm*fwhm2sigma, fwhm*fwhm2sigma, 0, 0)
     bounds = ([0,      init_obj_position[0]-fwhm/3.0, init_obj_position[1]-fwhm/3.0, fwhm/6.0, fwhm/6.0, -np.pi, -np.inf],
               [np.inf, init_obj_position[0]+fwhm/3.0, init_obj_position[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
@@ -167,11 +198,40 @@ def fitGaussian2D(image, gpm=None, fwhm=3.0, mask_edge=5, median_filter=False, n
     popt, pcov = opt.curve_fit(gaussian2D, (xx, yy), image.ravel() / wlscl,
                                bounds=bounds, p0=initial_guess)
     # Generate a best fit model
+    xobj, yobj = popt[1], popt[2]
     model = gaussian2D((xx, yy), *popt).reshape(image.shape) * wlscl
-    # Return the fitting results
-    #if np.isclose(np.sum(image), -70.234,atol=0.01):
+
+    # Optimally extract the object flux using the Gaussian fit
+    # Create an apodization window about the object position
+    radius = np.sqrt((xx - xobj)**2 + (yy - yobj)**2)
+    apodization_window = (radius <= 5.0*sigma)
+    # Compute the Gaussian model without an offset to use as the optimal extraction profile
+    popt_no_offset = popt.copy()
+    popt_no_offset[-1] = 0.0
+    gauss_profile = np.clip(gaussian2D((xx, yy), *popt_no_offset).reshape(image.shape) * wlscl, 0.0, None)
+    optkern = gauss_profile*apodization_window
+    optkern /= np.sum(optkern)
+    # Optimally extract at the object position
+    mean_image, median_image, std_image = sigma_clipped_stats(image[np.logical_not(totmask)], sigma=3.0)
+    image_skysub = image - median_image
+    ivar_denom = np.sum(_gpm*optkern)
+    ivar_num = np.sum(_gpm*_ivar*optkern**2)
+    ivar_opt = ivar_num/(ivar_denom + (ivar_denom == 0.0))
+    flux_opt = np.sum(_gpm*_ivar*image_skysub*optkern)/(ivar_num + (ivar_num == 0.0))
+    tot_weight = np.sum(_gpm*_ivar*optkern)
+    sigma_opt = np.sqrt(utils.inverse(ivar_opt))
+    # Print out a report for the S/N of the optimally extracted object
+    msgs.info(f"Optimal extraction of the brightest object gives{msgs.newline()}"
+            f"     -----------------------------{msgs.newline()}"
+            f"     | (x, y)  = {xobj:6.2f}, {yobj:6.2f}  |{msgs.newline()}"
+            f"     |   Flux  = {flux_opt:6.2f}          |{msgs.newline()}"
+            f"     |   Sigma = {sigma_opt:6.2f}          |{msgs.newline()}"
+            f"     |   S/N   = {flux_opt/sigma_opt:6.2f}          |{msgs.newline()}"
+            f"     -----------------------------{msgs.newline()}")
+    #if np.isclose(np.sum(image),-13.229953612054073):
     #    embed()
-    return popt, pcov, model, init_obj_position
+
+    return popt, pcov, model, init_obj_position, flux_opt, sigma_opt
 
 
 def dar_fitfunc(radec, coord_ra, coord_dec, datfit, wave, obstime, location, pressure,
@@ -353,7 +413,7 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     msgs.info("Making white light image")
     wl_img, wl_ivar, wl_gpm = make_whitelight_fromcube(_flxcube, _ivarcube, _gpmcube, wave=wave,
                                       wavemin=whitelight_range[0], wavemax=whitelight_range[1])
-    popt, pcov, model, init_obj_position = fitGaussian2D(wl_img, gpm=wl_gpm, fwhm = fwhm/platescale, norm=False)
+    popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(wl_img, ivar=wl_ivar, gpm=wl_gpm, fwhm = fwhm/platescale, norm=False)
     gaussian_position = popt[1], popt[2]
     # Object location for extraction 
     if manual_position is not None:
@@ -464,8 +524,8 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         optkern /= np.sum(optkern)
     else:
         msgs.info("Using whitelight image as a non-parametric spatial profile for optimal extraction")
-        sigma = 0.5*fwhm/platescale*fwhm2sigma
-        smoothed_wl_img = ndimage.gaussian_filter(wl_img, sigma=sigma, mode='constant', cval=0.0)
+        sigma = fwhm/platescale*fwhm2sigma
+        smoothed_wl_img = ndimage.gaussian_filter(wl_img, sigma=0.5*sigma, mode='constant', cval=0.0)
         # Create an apodization window using the coordinates and the specified center
         radius = np.sqrt((xx - xobj)**2 + (yy - yobj)**2)
         apodization_window = np.exp(-radius**2 / (2 * (5*sigma)**2))
@@ -616,7 +676,7 @@ def whitelight_objfind_qa(wl_img, wl_ivar, wl_gpm, gaussian_model, gaussian_posi
     wl_gpm : `numpy.ndarray`_
         The good pixel mask of the white light image
     gaussian_model : `numpy.ndarray`_
-        The 2D Gaussian model of the object from datacube.fitGaussian2D
+        The 2D Gaussian model of the object from datacube.
     gaussian_position : tuple
         The object position in the image determined from the Gaussian fit to the object. The first
         element is x and the second element is y.
@@ -1404,8 +1464,9 @@ def generate_WCS(crval, cdelt, numra, equinox=2000.0, name="PYP_SPEC"):
 def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, dspat, dwv, mnmx_wv, wghtsImg,
                             all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
                             ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
-                            sn_smooth_npix=None, weight_method='auto', reference_image=None, whitelight_range=None,
-                            correct_dar=True, specname="PYPSPEC"):
+                            sn_smooth_npix=None, weight_method='auto',
+                            reference_image=None, whitelight_range=None,
+                            correct_dar=True, specname="PYPSPEC", show_qa=False):
     r"""
     Calculate wavelength dependent optimal weights. The weighting is currently
     based on a relative :math:`(S/N)^2` at each wavelength. Note, this function
@@ -1501,13 +1562,14 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
 
             - ``'ivar'``: Use inverse variance weighting. This is not well
                 tested and should probably be deprecated.
-
     reference_image : `numpy.ndarray`_
         Reference image to use for the determination of the highest S/N spaxel in the image.
     correct_dar : bool, optional
         Correct for the differential atmospheric refraction.  Default is False.
     specname : str
         Name of the spectrograph
+    show_qa : bool, optional
+        If True, show QA plots in ginga. 
 
     Returns
     -------
@@ -1541,14 +1603,15 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
                            all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
                            wl_full, wl_sig, wl_bpm, dspat, dwv,
                            ra_min=ra_min, ra_max=ra_max, dec_min=dec_min, dec_max=dec_max, wave_min=wave_min,
-                           sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, correct_dar=correct_dar)
+                           sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, correct_dar=correct_dar, show_qa=show_qa)
 
-
+# TODO Refactor this, it should not be done this way, instead we should be computing the weights from the final aligned
+# cubes, after sigma clipping is performed. See my notes in coadd3d.run()
 def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                     all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
                     whitelight_img, whitelight_sigma, whitelight_bpm, dspat, dwv,
                     ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
-                    sn_smooth_npix=None, weight_method='auto', correct_dar=True, fwhm=1.5, show_qa=True):
+                    sn_smooth_npix=None, weight_method='auto', correct_dar=True, fwhm=1.5, show_qa=False):
     r"""
     Calculate wavelength dependent optimal weights. The weighting is currently
     based on a relative :math:`(S/N)^2` at each wavelength
@@ -1669,14 +1732,14 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
 
     # Find the location of the object with the highest S/N in the combined white light image
     platescale = dspat*units.deg.to(units.arcsec)
-    popt, pcov, model, init_obj_position = fitGaussian2D(
-        whitelight_img, gpm=np.logical_not(whitelight_bpm), fwhm = fwhm/platescale, norm=False)
+    whitelight_ivar = utils.inverse(np.square(whitelight_sigma))
+    popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(
+        whitelight_img, ivar=whitelight_ivar, gpm=np.logical_not(whitelight_bpm), fwhm = fwhm/platescale, norm=False)
     gaussian_position = popt[1], popt[2]
     if show_qa: 
         whitelight_objfind_qa(whitelight_img, utils.inverse(np.square(whitelight_sigma)), 
                                 np.logical_not(whitelight_bpm), model, gaussian_position, 
                                 init_obj_position, channel_prefix = f'Weights_')
-
     
     # OLD METHOD
     #med_filt_whitelight = signal.medfilt2d(whitelight_img, kernel_size=3)

@@ -21,6 +21,7 @@ class CoAddDataCube(scriptbase.ScriptBase):
         parser.add_argument('-v', '--verbosity', type=int, default=1,
                             help='Verbosity level between 0 [none] and 2 [all]. Default: 1. '
                                  'Level 2 writes a log with filename coadd_datacube_YYYYMMDD-HHMM.log')
+        parser.add_argument("--debug", default=False, action="store_true", help="show debug plots?")
         return parser
 
     @staticmethod
@@ -81,7 +82,8 @@ class CoAddDataCube(scriptbase.ScriptBase):
                                      skysub_frame=skysub_frame, sensfile=sensfile,
                                      scale_corr=scale_corr, grating_corr=grating_corr,
                                      ra_offsets=ra_offsets, dec_offsets=dec_offsets,
-                                     spectrograph=spectrograph, det=args.det, overwrite=args.overwrite)
+                                     spectrograph=spectrograph, det=args.det, overwrite=args.overwrite, 
+                                     debug=args.debug)
 
         # Coadd the files
         coadd.run()
