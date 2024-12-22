@@ -221,7 +221,7 @@ class DataCube(datamodel.DataContainer):
             self._ivar = utils.inverse(self.sig**2)
         return self._ivar
 
-    def extract_spec(self, parset, outname=None, output_dir=None, boxcar_radius=None, overwrite=False, debug=False):
+    def extract_spec(self, parset, output_dir=None, overwrite=False, debug=False):
         """
         Extract a spectrum from the datacube
 
@@ -229,8 +229,6 @@ class DataCube(datamodel.DataContainer):
         ----------
         parset : dict
             A dictionary containing the :class:`~pypeit.par.pypeitpar.ReducePar` parameters.
-        outname : str, optional
-            Name of the output file
         boxcar_radius : float, optional
             Radius of the circular boxcar (in arcseconds) to use for the extraction
         overwrite : bool, optional
@@ -240,11 +238,21 @@ class DataCube(datamodel.DataContainer):
             directory in which the class is run.
         """
         _output_dir = '' if output_dir is None else output_dir
-        # Extract the spectrum
-        optfwhm = parset['findobj']['find_fwhm'] if parset['extraction']['use_user_fwhm'] else None
         
-        if parset['cube']['manual'] is not None and len(parset['cube']['manual']) > 0:
-            manual_dict= ManualCubeExtractionObj.parse(parset['cube']['manual']).to_dict()
+        # Check if the files exist, if so crash out
+        file_suffix = os.path.basename(self.filename) if parset['output_filename'] \
+            is None else parset['output_filename']
+        spec1d_filename = os.path.join(_output_dir, 'spec1d_' + file_suffix)
+        spec2d_filename = os.path.join(_output_dir, 'spec2d_{:s}'.format(file_suffix))
+        if os.path.isfile(spec1d_filename) and not overwrite:
+            msgs.error("File exists: {:s}".format(spec1d_filename) + msgs.newline() +
+                          "Set overwrite=True to overwrite")
+        if os.path.isfile(spec2d_filename) and not overwrite:
+            msgs.error("File exists: {:s}".format(spec2d_filename) + msgs.newline() +
+                          "Set overwrite=True to overwrite")
+        
+        if parset['manual'] is not None and len(parset['manual']) > 0:
+            manual_dict= ManualCubeExtractionObj.parse(parset['manual']).to_dict()
             manual_position = (manual_dict['spatx'][0], manual_dict['spaty'][0])
         else:
             manual_position = None
@@ -254,19 +262,19 @@ class DataCube(datamodel.DataContainer):
         # TODO :: Avoid transposing these large cubes
         sobjs, spec2d = datacube.extract_point_source(
             self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs, exptime, 
-            whitelight_range=parset['cube']['whitelight_range'], fluxed=self.fluxed, 
-            boxcar_radius=boxcar_radius, optfwhm=optfwhm, manual_position=manual_position, 
+            fluxed=self.fluxed, whitelight_range=parset['whitelight_range'],
+            fwhm = parset['fwhm'], snr_thresh = parset['snr_thresh'], 
+            manual_position=manual_position,  boxcar_radius=parset['boxcar_radius'], 
+            opt_prof_method=parset['opt_prof_method'],
             spectrograph = self.spectrograph, show_qa=debug)
+
         # Save the extracted spectrum
-        file_suffix = os.path.basename(self.filename) if outname is None else outname
-        spec1d_filename = os.path.join(_output_dir, 'spec1d_' + file_suffix)
         sobjs.write_to_fits(self.head0, spec1d_filename, overwrite=overwrite)
         # Save the psuedo spec2d images
         all_spec2d = spec2dobj.AllSpec2DObj()
         all_spec2d[spec2d.detector.name] = spec2d
         # Build header for spec2d
-        outfile2d = os.path.join(_output_dir, 'spec2d_{:s}'.format(file_suffix))
-        all_spec2d.write_to_fits(outfile2d, pri_hdr=fits.Header(), overwrite=overwrite)
+        all_spec2d.write_to_fits(spec2d_filename, pri_hdr=fits.Header(), overwrite=overwrite)
 
 
 
@@ -1334,7 +1342,8 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                             wave, self.output_dir, outfile, whitelight_range=wl_wvrng, overwrite=self.overwrite)
                     
                 # No need to proceed and store arrays - we are writing individual datacubes
-                continue
+                # TESTING JFH
+                #continue
 
             # Store the information if we are combining multiple frames
             self.all_sci.append(sciImg.copy())
@@ -1349,6 +1358,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             self.all_align.append(alignSplines)
             self.all_dar.append(darcorr)
 
+        
     def run_align(self, fwhm=1.5, show_qa=False):
         """
         This routine aligns multiple cubes by using manual input offsets or 
@@ -1387,7 +1397,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             # Get the good white light pixels
             slitid_img_gpm, wavediff = datacube.get_whitelight_pixels(self.all_wave, self.all_slitid, min_wl, max_wl)
             # Iterate over white light image generation and spatial shifting
-            numiter = 2
+            numiter = 5
             for dd in range(numiter):
                 msgs.info(f"Iterating on spatial translation - ITERATION #{dd+1}/{numiter}")
                 # Generate the WCS
@@ -1433,8 +1443,8 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                             ra_offsets[ff] += ra_shift
                             dec_offsets[ff] += dec_shift
                 else: 
-                    ra_star = np.zeros(self.numfiles)
-                    dec_star = np.zeros(self.numfiles)
+                    ra_pix_star = np.zeros(self.numfiles)
+                    dec_pix_star = np.zeros(self.numfiles)
                     for ff in range(self.numfiles):
                         popt, pcov, model, init_obj_position, flux_opt, sigma_opt = datacube.fitGaussian2D(
                             wl_imgs[:, :, ff], ivar=utils.inverse(np.square(sig_imgs[:,:, ff])), 
@@ -1446,10 +1456,10 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                                 wl_imgs[:, :, ff], utils.inverse(np.square(sig_imgs[:, :, ff])), 
                                 np.logical_not(bpm_imgs[:, :, ff]), model, gaussian_position, 
                                 init_obj_position, channel_prefix = f'Img_{ff}')
-                        ra_star[ff], dec_star[ff] = gaussian_position
+                        ra_pix_star[ff], dec_pix_star[ff] = gaussian_position
 
-                    ra_shifts = ((ra_star - ra_star[ref_idx])*self._dspat/cosdec)
-                    dec_shifts = ((dec_star - dec_star[ref_idx])*self._dspat)
+                    ra_shifts = ((ra_pix_star - ra_pix_star[ref_idx])*self._dspat/cosdec)
+                    dec_shifts = ((dec_pix_star - dec_pix_star[ref_idx])*self._dspat)
                     ra_offsets =[ra_offsets[ff] + ra_shifts[ff] for ff in range(self.numfiles)]
                     dec_offsets =[dec_offsets[ff] + dec_shifts[ff] for ff in range(self.numfiles)]
                     for ff in range(self.numfiles):
@@ -1609,7 +1619,10 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             #else:
             for ff in range(self.numfiles):
                 outfile = datacube.get_output_filename(self.output_dir, "", self.cubepar['output_filename'], False, ff)
-                # Generate the datacube          
+                # Generate the datacube       
+                
+                # TODO Put in a self.native flag to allow for the datacube to be generated in the native resolution
+                # of the data as it is currently being done in the load method?    
                 flxcube, sigcube, bpmcube, normcube, wave = \
                     datacube.generate_cube_subpixel(cube_wcs, vox_edges,
                                                     self.all_sci[ff], self.all_ivar[ff], self.all_wave[ff],

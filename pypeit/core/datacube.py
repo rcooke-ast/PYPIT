@@ -176,8 +176,8 @@ def fitGaussian2D(image, ivar=None, gpm=None, fwhm=3.0, nsigma=5.0, mask_edge=4,
                 sources[col].info.format = '%.2f'  # for consistent table output
         sources.pprint(max_width=76)
     if sources is None:
-        display.show_image(objfind_image*np.logical_not(totmask)*np.sqrt(ivar_objfind), 
-                           chname='objfind_image', cuts=(-2.0, 5.0))
+        display.show_image((objfind_image*np.logical_not(totmask)*np.sqrt(ivar_objfind)).T, 
+                           chname='S/N objfind_image', cuts=(-2.0, 5.0))
         embed()
         msgs.error("No sources found in the image. Try lowering the significance threshold, "
                    f"nsigma = {nsigma:.1f}{msgs.newline()}"
@@ -313,9 +313,9 @@ def correct_grating_shift(wave_eval, wave_curr, spl_curr, wave_ref, spl_ref, ord
 
 
 def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
-                         whitelight_range=None, subpixel=20,
-                         boxcar_radius=None, fwhm=1.5, optfwhm=None, manual_position=None,
-                         fluxed=False, spectrograph='keck_kcrm', show_qa=False):
+                         whitelight_range=None, fluxed=False, subpixel=20,
+                         boxcar_radius=None, fwhm=1.5, snr_thresh=5.0, manual_position=None,
+                         opt_prof_method='fit_gauss',  spectrograph='keck_kcrm', show_qa=False):
     """
     Extract a spectrum of a standard star from a datacube
 
@@ -341,6 +341,8 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         either element of the list is None, then the minimum/maximum
         wavelength range of that element will be set by the minimum/maximum
         wavelength of all_wave.
+    fluxed : bool, optional
+        Is the datacube fluxed?
     subpixel : int, optional
         Number of pixels to subpixelate spectrum when creating mask
     boxcar_radius : float, optional
@@ -349,17 +351,34 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     fwhm : float, optional
         FWHM of the PSF in arcseconds. Use to determine the degree of smoothing of the whitelight image, the
         kernel size for the initial object finding, and the bounds of the parameters for the 2D Gaussian fit. 
+        Note that if the opt_prof_method is set to 'user_gauss', this parameter will be also be used as
+        the FWHM of the the 2D (symmetric) Gaussian spatial profile for optimal extraction.
         Default is 1.5 arcseconds.
-    optfwhm = float, optional
-        The FWHM of the PSF in arcseconds to be used for a 2D (symmetric) Gaussian spatial profile for optimal extraction.
-        The default is None, which means that a non-parametric spatial profile will be used for optimal extraction
-        determined from the white light image.
+    snr_thresh : float, optional
+        The signal-to-noise ratio threshold to use when determining the initial object position in 
+        the whitelight image with DAOStarFinder (this is the nsigma parameter in 
+        fitGaussian2D). Default is 5.0 
     manual_position : tuple, optional
         Manual position of the object in the image, where (x, y) is the spatial pixel position in 
         the cube. Default is None, which means that the position will be determined from the
         whitelight image.
-    fluxed : bool, optional
-        Is the datacube fluxed?
+    opt_prof_method : str, optional
+        The method to be used to determine the object spatial profile for optimal extraction. 
+        Options are ``'user_gauss'``, ``'fit_gauss'``,  or ``'whitelight'``. The default is 
+        ``'fit_gauss'``.  Behavior is as follows:
+
+            - ``'user_gauss'``: Use a 2D symmetric Gaussian profile. The FWHM of the Gaussian is
+                determined by the fwhm parameter, which was also used for the object finding. 
+
+            - ``'fit_gauss'``:  Use the 2D Gaussian (possibly assymetric) Gaussian fit 
+                to the whitelight image which was used to determine the object position.
+                This creates a model using func:`pypeit.core.datacube.fitGaussian2D` but
+                the offset is set to zero.
+
+            - ``'whitelight'``: Use the whitelight image to determine a non-parametric 
+                spatial profile. The whitelight image is smoothed with a Gaussian kernel
+                of width 0.5*sigma, where sigma is the standard deviation (fwhm/2.35) 
+                corresponding to the fwhm parameter. 
     spectrograph : str or pypeit.spectrographs.spectrograph.Spectrograph, optional
         The spectrograph used to take the data. Default is 'keck_kcrm'
     show_qa : bool, optional
@@ -413,7 +432,8 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     msgs.info("Making white light image")
     wl_img, wl_ivar, wl_gpm = make_whitelight_fromcube(_flxcube, _ivarcube, _gpmcube, wave=wave,
                                       wavemin=whitelight_range[0], wavemax=whitelight_range[1])
-    popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(wl_img, ivar=wl_ivar, gpm=wl_gpm, fwhm = fwhm/platescale, norm=False)
+    popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(
+        wl_img, ivar=wl_ivar, gpm=wl_gpm, fwhm = fwhm/platescale, nsigma=snr_thresh, norm=False)
     gaussian_position = popt[1], popt[2]
     # Object location for extraction 
     if manual_position is not None:
@@ -512,18 +532,37 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     y = np.linspace(0, wl_img.shape[1] - 1, wl_img.shape[1])
     xx, yy = np.meshgrid(x, y, indexing='ij')
 
-    if optfwhm is not None:
-        msgs.info("Generating a 2D Gaussian kernel for the optimal extraction, with FWHM = {:.2f} pixels".format(optfwhm))
+    if opt_prof_method == 'user_gauss':
+        msgs.info("Optimal extraction with user_gauss method:")
+        msgs.info("------------------------------------------------")
+        msgs.info(f"User provided FWHM: {fwhm:.2f} arcsec")
+        msgs.info("------------------------------------------------")
         # Generate a Gaussian kernel
+        fwhm_pix = fwhm/platescale
         intflux = 1
-        sigma_x, sigma_y = optfwhm*fwhm2sigma, optfwhm*fwhm2sigma
+        sigma_x, sigma_y = fwhm_pix*fwhm2sigma, fwhm_pix*fwhm2sigma
         theta, offset, = 0.0, 0.0
         optkern = gaussian2D(
             (xx, yy), intflux, xobj, yobj, sigma_x, sigma_y, theta, offset).reshape(wl_img.shape)
         # Normalise the kernel
         optkern /= np.sum(optkern)
-    else:
-        msgs.info("Using whitelight image as a non-parametric spatial profile for optimal extraction")
+    elif opt_prof_method == 'fit_gauss':
+        # Compute the Gaussian model without an offset to use as the optimal extraction profile
+        popt_no_offset = popt.copy()
+        popt_no_offset[-1] = 0.0
+        gauss_profile = np.clip(gaussian2D((xx, yy), *popt_no_offset).reshape(wl_img.shape), 0.0, None)
+        optkern = gauss_profile/np.sum(gauss_profile)
+        # Print to the screen 
+        _, _, _, sigma_x, sigma_y, theta, _ = popt_no_offset
+        # Print out the properties of the Gaussian
+        msgs.info("Optimal extraction with fit_gauss method:")
+        msgs.info("--------------------------------")
+        msgs.info(f"FWHM_x: {sigma_x*platescale/fwhm2sigma:.2f} arcsec")
+        msgs.info(f"FWHM_y: {sigma_y*platescale/fwhm2sigma:.2f} arcsec")
+        msgs.info(f"Theta: {np.degrees(theta):.2f} degrees")
+        msgs.info("--------------------------------")        
+    elif opt_prof_method == 'whitelight':
+        msgs.info("Optimal extraction with fit_gauss method: using whitelight image as a non-parametric spatial profile")
         sigma = fwhm/platescale*fwhm2sigma
         smoothed_wl_img = ndimage.gaussian_filter(wl_img, sigma=0.5*sigma, mode='constant', cval=0.0)
         # Create an apodization window using the coordinates and the specified center
@@ -532,6 +571,7 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         # Apply the apodization window to the smoothed image
         apo_smooth_wl_img = smoothed_wl_img * apodization_window
         optkern = apo_smooth_wl_img/np.sum(apo_smooth_wl_img)
+
 
     optkern_masked = optkern * mask[:,:,0]
     # Normalise the white light image
@@ -623,8 +663,14 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
                                     maskdef_designtab=None)
 
     if show_qa: 
+        #  Show object finding QA 
         whitelight_objfind_qa(wl_img, wl_ivar, wl_gpm, model, gaussian_position, init_obj_position, 
                           manual_position=manual_position)
+        # Show the extraction QA
+        extract_chname = 'opt_prof_method:' + opt_prof_method
+        viewer, ch_model = display.show_image(optkern_masked.T, chname=extract_chname, wcs_match=True, 
+                                                cuts=(0.0, np.max(optkern_masked)))
+
         
         
         
@@ -1330,8 +1376,7 @@ def create_wcs(raImg, decImg, waveImg, slitid_img_gpm, dspat, dwave,
         A value of 0 indicates that the pixel is not on a slit. All other values indicate the
         slit spatial ID.
     dspat : float
-        Spatial size of each square voxel (in arcsec). The default is to use the
-        values in cubepar.
+        Spatial size of each square voxel (in arcsec).
     dwave : float
         Linear wavelength step of each voxel (in Angstroms)
     ra_offsets : list, optional
@@ -2231,9 +2276,10 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
                 this_dec_int = dec_spl(spatpos_subpix)
                 # Now apply the DAR correction and any user-supplied offsets
                 this_ra_int += ra_corr + _ra_offset[fr]
-                this_dec_int += dec_corr - _dec_offset[fr]
-                # TODO: Hack to fix bug for KCWI. I suspect the WCS is being set incorrectly
                 #this_dec_int += dec_corr + _dec_offset[fr]
+                # TODO: Below was a hack to fix bug for KCWI. I suspected the WCS was being set incorrectly, 
+                # which was true, and this hack fixed it. Old code is th eline above. 
+                this_dec_int += dec_corr - _dec_offset[fr]
                 # Convert world coordinates to voxel coordinates, then histogram
                 sslo = ss * num_subpixels
                 sshi = (ss + 1) * num_subpixels

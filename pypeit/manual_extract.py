@@ -137,7 +137,7 @@ class ManualExtractionObj(datamodel.DataContainer):
         if len(self.spec) != len(self.spat):
             raise ValueError("spec and spat not of the same length")
         if len(self.fwhm) != len(self.detname):
-            raise ValueError("FWHM and not det not of the same length")
+            raise ValueError("FWHM and det not of the same length")
 
     def dict_for_objfind(self, detname, neg=False):
         """
@@ -202,9 +202,9 @@ class ManualCubeExtractionObj(datamodel.DataContainer):
         'spaty': dict(otype=np.ndarray, atype=np.floating, 
                     descr='Cube spatial y positions to hand extract'),
         'fwhm': dict(otype=np.ndarray, atype=np.floating, 
-                    descr='FWHMs for hand extractions in arcseconds'),
+                    descr='FWHMs for hand extractions in arcseconds (optional, not yet used)'),
         'boxcar_rad': dict(otype=np.ndarray, atype=np.floating, 
-                    descr='Boxcar radius for hand extractions in arcseconds (optional)'),
+                    descr='Boxcar radius for hand extractions in arcseconds (optional, not yet used)'),
     }
 
     @classmethod
@@ -226,7 +226,12 @@ class ManualCubeExtractionObj(datamodel.DataContainer):
             parse = m_e.split(':')
             idict['spatx'] += [float(parse[0])]
             idict['spaty'] += [float(parse[1])]
-            idict['fwhm'] += [float(parse[2])]
+            
+            # FWHM?
+            if len(parse) >= 3:
+                idict['fwhm'] += [float(parse[2])]
+            else:
+                idict['fwhm'] += [-1.]
 
             # Boxcar?
             if len(parse) >= 4:
@@ -243,6 +248,7 @@ class ManualCubeExtractionObj(datamodel.DataContainer):
     def __init__(self, spatx=None, spaty=None, fwhm=None, boxcar_rad=None):
         # Parse
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
+        embed()
         d = dict([(k,values[k]) for k in args[1:]])
         # Setup the DataContainer
         datamodel.DataContainer.__init__(self, d=d)
@@ -257,8 +263,8 @@ class ManualCubeExtractionObj(datamodel.DataContainer):
         """
         if len(self.spatx) != len(self.spaty):
             raise ValueError("spatx and spaty not of the same length")
-        if len(self.fwhm) != len(self.spatx):
-            raise ValueError("FWHM and spatx and spaty not of the same length")
+        #if len(self.fwhm) != len(self.spatx):
+        #    raise ValueError("FWHM and spatx and spaty not of the same length")
 
 
     def to_dict(self):

@@ -1832,16 +1832,6 @@ class CubePar(ParSet):
                                 'relative exposure time.'
                                 
 
-        # manual extraction
-        defaults['manual'] = None
-        dtypes['manual'] = str
-        descr['manual'] = 'Manual extraction parameters for pypeit_extract_datacube. The format is ' \
-                          'spatx:spaty:fwhm:boxcar_radius. ' \
-                          'Multiple manual extractions are semi-colon separated, ' \
-                          'and spatx,specy are spatial x and y position in the datacube.' \
-                          'fwhm is in arcseconds. boxcar_radius is optional and also in arcsec.'                                
-                                
-
         # Instantiate the parameter set
         super(CubePar, self).__init__(list(pars.keys()),
                                       values=list(pars.values()),
@@ -1884,6 +1874,150 @@ class CubePar(ParSet):
         allowed_weight_methods = Coadd1DPar.valid_weight_methods()
         if self.data['weight_method'] not in allowed_weight_methods:
             raise ValueError("'weight_method' must be one of:\n" + ", ".join(allowed_weight_methods))
+
+
+
+
+class CubeExtractionPar(ParSet):
+    """
+    The parameter set used to hold arguments for functionality relevant
+    to cube generation (primarily for IFU data).
+
+    For a table with the current keywords, defaults, and descriptions,
+    see :ref:`parameters`.
+    """
+
+    def __init__(self, output_filename=None, whitelight_range=None, fwhm=None, 
+                 snr_thresh=None,  manual=None, boxcar_radius=None, opt_prof_method=None):
+
+        # Grab the parameter names and values from the function
+        # arguments
+        args, _, _, values = inspect.getargvalues(inspect.currentframe())
+        pars = OrderedDict([(k, values[k]) for k in args[1:]])  # "1:" to skip 'self'
+
+        # Initialize the other used specifications for this parameter
+        # set
+        defaults = OrderedDict.fromkeys(pars.keys())
+        options = OrderedDict.fromkeys(pars.keys())
+        dtypes = OrderedDict.fromkeys(pars.keys())
+        descr = OrderedDict.fromkeys(pars.keys())
+
+        # Fill out parameter specifications.  Only the values that are
+        # *not* None (i.e., the ones that are defined) need to be set
+
+        defaults['output_filename'] = None
+        dtypes['output_filename'] = str
+        descr['output_filename'] = 'basename for output files, i.e. outputs will be written to' \
+                                   'spec1d_basename.fits and spec2d_basename.fits. Default is None, which' \
+                                   'means that the basename will be taken from the input file.'
+
+        defaults['whitelight_range'] = [None, None]
+        dtypes['whitelight_range'] = list
+        descr['whitelight_range'] = 'A two element list specifying the wavelength range over which to generate the ' \
+                                    'white light image. The first (second) element is the minimum (maximum) ' \
+                                    'wavelength to use. If either of these elements are None, PypeIt will ' \
+                                    'automatically use a wavelength range that ensures all spaxels have the ' \
+                                    'same wavelength coverage.' 
+
+                              
+        
+        # Object finding parameters 
+        defaults['fwhm'] = 1.5
+        dtypes['fwhm'] = [int, float]
+        descr['fwhm'] = 'FWHM of the PSF in arcseconds. Used to determine the degree of smoothing of the ' \
+                        'whitelight image, the kernel size for the initial object finding, and the bounds of ' \
+                        'the parameters for the 2D Gaussian fit. Note that if the opt_prof_method is set to ' \
+                        '\'user_gauss\', this parameter will also be used as the FWHM of the 2D (symmetric) ' \
+                        'Gaussian spatial profile for optimal extraction. Default is 1.5 arcseconds.'        
+        
+        defaults['snr_thresh'] = 5.0
+        dtypes['snr_thresh'] = [int, float]
+        descr['snr_thresh'] = 'The signal-to-noise ratio threshold to use when determining the initial ' \
+                              'object position in the whitelight image with DAOStarFinder' \
+                              ' (this is the nsigma parameter in :func:`~pypeit.core.datacube.fitGaussian2D`'
+
+        # manual extraction
+        defaults['manual'] = None
+        dtypes['manual'] = str
+        descr['manual'] = 'Manual extraction parameters for pypeit_extract_datacube. The format is ' \
+                          'spatx:spaty:fwhm:boxcar_radius. ' \
+                          'Multiple manual extractions are semi-colon separated, ' \
+                          'and spatx,specy are spatial x and y position in the datacube.' \
+                          'fwhm and boxcar_radius are optional and both are in arcsec.' \
+                          'Currently only the use of spatx:spaty is supported, and only single ' \
+                          'objects can be extracted at a time, so the semi-colon separation does not apply.' 
+
+        defaults['boxcar_radius'] = None
+        dtypes['boxcar_radius'] = [int, float]
+        descr['boxcar_radius'] = 'Radius of the circular boxcar (in arcseconds) to use for the extraction. ' \
+                                 'Default is None, which means that the radius will be determined ' \
+                                 'from the FWHM of the 2D Gaussian fit to the whitelight image.'
+
+
+        #Extraction parameters 
+        defaults['opt_prof_method'] = 'fit_gauss'
+        options['opt_prof_method'] = CubeExtractionPar.valid_opt_prof_methods()
+        dtypes['opt_prof_method'] = str
+        descr['opt_prof_method'] = 'The method to be used to determine the object spatial profile for optimal extraction. ' \
+                                'Options are ``\'user_gauss\'``, ``\'fit_gauss\'``, or ``\'whitelight\'``. The default is ' \
+                                '``\'fit_gauss\'``. Behavior is as follows:' \
+                                '' \
+                                '- ``\'user_gauss\'``: Use a 2D symmetric Gaussian profile. The FWHM of the Gaussian is ' \
+                                'determined by the fwhm parameter, which was also used for the object finding.' \
+                                '' \
+                                '- ``\'fit_gauss\'``: Use the 2D Gaussian (possibly asymmetric) Gaussian fit ' \
+                                'to the whitelight image which was used to determine the object position. ' \
+                                'This creates a model using :func:`pypeit.core.datacube.fitGaussian2D` but ' \
+                                'the offset is set to zero.' \
+                                '' \
+                                '- ``\'whitelight\'``: Use the whitelight image to determine a non-parametric ' \
+                                'spatial profile. The whitelight image is smoothed with a Gaussian kernel ' \
+                                'of width 0.5*sigma, where sigma is the standard deviation (fwhm/2.35) ' \
+                                'corresponding to the fwhm parameter.'
+
+
+        # Instantiate the parameter set
+        super(CubeExtractionPar, self).__init__(list(pars.keys()),
+                                      values=list(pars.values()),
+                                      defaults=list(defaults.values()),
+                                      options=list(options.values()),
+                                      dtypes=list(dtypes.values()),
+                                      descr=list(descr.values()))
+        self.validate()
+
+    @classmethod
+    def from_dict(cls, cfg):
+        k = np.array([*cfg.keys()])
+
+        # Basic keywords
+        parkeys = ['output_filename', 'whitelight_range', 'fwhm', 
+                'snr_thresh', 'manual', 'boxcar_radius', 'opt_prof_method']        
+
+        badkeys = np.array([pk not in parkeys for pk in k])
+        if np.any(badkeys):
+            raise ValueError('{0} not recognized key(s) for CubePar.'.format(k[badkeys]))
+
+        kwargs = {}
+        for pk in parkeys:
+            kwargs[pk] = cfg[pk] if pk in k else None
+        return cls(**kwargs)
+
+    def validate(self):
+        # Check the skysub options
+        if len(self.data['whitelight_range']) != 2:
+            raise ValueError("The 'whitelight_range' must be a two element list of either NoneType or float")
+
+        allowed_opt_prof_methods = CubeExtractionPar.valid_opt_prof_methods()
+        if self.data['opt_prof_method'] not in allowed_opt_prof_methods:
+            raise ValueError("'opt_prof_method' must be one of:\n" + ", ".join(allowed_opt_prof_methods))
+
+
+    @staticmethod
+    def valid_opt_prof_methods():
+        """ Return the valid options for the weighting of spectra. """
+        return ['user_gauss', 'fit_gauss', 'whitelight']
+
+
 
 
 class FluxCalibratePar(ParSet):
@@ -4069,7 +4203,7 @@ class ReducePar(ParSet):
     """
 
     def __init__(self, findobj=None, skysub=None, extraction=None,
-                 cube=None, trim_edge=None, slitmask=None):
+                 cube=None, cube_extraction=None, trim_edge=None, slitmask=None):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -4104,6 +4238,10 @@ class ReducePar(ParSet):
         defaults['cube'] = CubePar()
         dtypes['cube'] = [ ParSet, dict ]
         descr['cube'] = 'Parameters for cube generation algorithms'
+        
+        defaults['cube_extraction'] = CubeExtractionPar()
+        dtypes['cube_extraction'] = [ ParSet, dict ]
+        descr['cube_extraction'] = 'Parameters for cube spectral extraction algorithms'
 
         defaults['trim_edge'] = [3, 3]
         dtypes['trim_edge'] = list
@@ -4122,7 +4260,7 @@ class ReducePar(ParSet):
     def from_dict(cls, cfg):
         k = np.array([*cfg.keys()])
 
-        allkeys = ['findobj', 'skysub', 'extraction', 'cube', 'trim_edge', 'slitmask']
+        allkeys = ['findobj', 'skysub', 'extraction', 'cube', 'cube_extraction', 'trim_edge', 'slitmask']
         badkeys = np.array([pk not in allkeys for pk in k])
         if np.any(badkeys):
             raise ValueError('{0} not recognized key(s) for ReducePar.'.format(k[badkeys]))
@@ -4137,6 +4275,8 @@ class ReducePar(ParSet):
         kwargs[pk] = ExtractionPar.from_dict(cfg[pk]) if pk in k else None
         pk = 'cube'
         kwargs[pk] = CubePar.from_dict(cfg[pk]) if pk in k else None
+        pk = 'cube_extraction'
+        kwargs[pk] = CubeExtractionPar.from_dict(cfg[pk]) if pk in k else None
         pk = 'slitmask'
         kwargs[pk] = SlitMaskPar.from_dict(cfg[pk]) if pk in k else None
 

@@ -23,7 +23,8 @@ class ExtractDataCube(scriptbase.ScriptBase):
         parser.add_argument("-e", "--ext_file", type=str,
                             help='Configuration file with extraction parameters')
         parser.add_argument("-s", "--save", type=str,
-                            help='Output spec1d filename')
+                            help='Basename for output files, i.e. outputs will be written to'
+                            'spec1d_basename.fits and spec2d_basename.fits')
         parser.add_argument('-o', '--overwrite', default=False, action='store_true',
                             help='Overwrite any existing files/directories')
         parser.add_argument('-b', '--boxcar_radius', type=float, default=None,
@@ -67,9 +68,12 @@ class ExtractDataCube(scriptbase.ScriptBase):
         # Set the boxcar radius
         boxcar_radius = args.boxcar_radius
 
-        # Set the output name
-        outname = None if args.save is None else args.save
-
+        # Set the output name. If one was provided by the user 
+        if args.save is not None:
+            par['cube_extraction']['output_filename'] = args.save
+        if args.boxcar_radius is not None:
+            par['cube_extraction']['boxcar_radius'] = args.boxcar_radius
+        
         # Load the DataCube
         tstart = time.time()
 
@@ -80,8 +84,7 @@ class ExtractDataCube(scriptbase.ScriptBase):
 
         # Extract the spectrum
         extcube.extract_spec(
-            parset['reduce'], outname=outname, output_dir=str(coadd_scidir), 
-            boxcar_radius=boxcar_radius, overwrite=args.overwrite, 
+            parset['reduce']['cube_extraction'], output_dir=str(coadd_scidir), overwrite=args.overwrite, 
             debug=args.debug)
 
         # Report the extraction time
