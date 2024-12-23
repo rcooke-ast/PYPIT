@@ -619,6 +619,12 @@ class SpecObjs:
         _extinct_correct = (True if sens.algorithm == 'UVIS' else False) \
             if par['extinct_correct'] is None else par['extinct_correct']
 
+        if par['add_blaze']:
+            _, _, _, _, blaze_function, _, _ = self.unpack_object(log10blaze=True, extract_blaze=True, extract_type='BOX')
+            blaze_function = blaze_function.T
+        else:
+            blaze_function = None
+
         # TODO enbaling this for now in case someone wants to treat the IFU as a slit spectrograph
         #  (not recommnneded but useful for quick reductions where you don't want to construct cubes and don't care about DAR).
         if spectrograph.pypeline in ['MultiSlit','SlicerIFU']:
@@ -631,7 +637,8 @@ class SpecObjs:
                                              latitude=spectrograph.telescope['latitude'],
                                              extinctfilepar=par['extinct_file'],
                                              extrap_sens=par['extrap_sens'],
-                                             airmass=float(self.header['AIRMASS']))
+                                             airmass=float(self.header['AIRMASS']),
+                                             blaze=blaze_function[ii] if blaze_function is not None else None)
                 elif sens.wave.shape[1] > 1 and sens.splice_multi_det:
                     # This deals with the multi detector case where the sensitivity function is spliced. Note that
                     # the final sensitivity function written to disk is  the spliced one. This functionality is only
@@ -643,7 +650,8 @@ class SpecObjs:
                                              latitude=spectrograph.telescope['latitude'],
                                              extinctfilepar=par['extinct_file'],
                                              extrap_sens=par['extrap_sens'],
-                                             airmass=float(self.header['AIRMASS']))
+                                             airmass=float(self.header['AIRMASS']),
+                                             blaze=blaze_function[ii] if blaze_function is not None else None)
                 else:
                     msgs.error('This should not happen, there is a problem with your sensitivity function.')
 
@@ -654,7 +662,7 @@ class SpecObjs:
             # where not all orders are present in the data as in the sensfunc, etc.,
             # i.e. X-shooter with the K-band blocking filter.
             ech_orders = np.array(sens.sens['ECH_ORDERS']).flatten()
-            for sci_obj in self.specobjs:
+            for ii, sci_obj in enumerate(self.specobjs):
                 # JFH Is there a more elegant pythonic way to do this without looping over both orders and sci_obj?
                 indx = np.where(ech_orders == sci_obj.ECH_ORDER)[0]
                 if indx.size == 1:
@@ -665,7 +673,8 @@ class SpecObjs:
                                              longitude=spectrograph.telescope['longitude'],
                                              latitude=spectrograph.telescope['latitude'],
                                              extinctfilepar=par['extinct_file'],
-                                             airmass=float(self.header['AIRMASS']))
+                                             airmass=float(self.header['AIRMASS']),
+                                             blaze=blaze_function[ii] if blaze_function is not None else None)
                 elif indx.size == 0:
                     msgs.info('Unable to flux calibrate order = {:} as it is not in your sensitivity function. '
                               'Something is probably wrong with your sensitivity function.'.format(sci_obj.ECH_ORDER))

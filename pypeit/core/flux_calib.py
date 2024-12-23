@@ -752,7 +752,7 @@ def sensfunc(wave, counts, counts_ivar, counts_mask, exptime, airmass, std_dict,
 
 
 def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta_wave=None, extinct_correct=False,
-                         airmass=None, longitude=None, latitude=None, extinctfilepar=None, extrap_sens=False):
+                         airmass=None, longitude=None, latitude=None, extinctfilepar=None, extrap_sens=False, blaze=None):
     """
     Get the final sensitivity function factor that will be multiplied into a spectrum in units of counts to flux calibrate it.
     This code interpolates the sensitivity function and can also multiply in extinction and telluric corrections.
@@ -787,6 +787,9 @@ def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta
             Used for extinction correction
         extrap_sens (bool, optional):
             Extrapolate the sensitivity function (instead of crashing out)
+        blaze (`numpy.ndarray`_, optional):
+            Blaze array for the spectrum to be flux calibrated.
+            This is used to add the blaze to the sensitivity function.
 
     Returns
     -------
@@ -831,7 +834,13 @@ def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta
                        "Adjust the par['sensfunc']['extrap_blu'] and/or "
                        "par['sensfunc']['extrap_red'] to extrapolate further and recreate "
                        "your sensfunc.")
-
+    # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'k')
+    if blaze is not None:
+        # Correct the sensitivity function for the blaze
+        msgs.info("Adding the blaze to the sensitivity function")
+        zeropoint_obs += 2.5 * blaze
+    # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'r')
+    # plt.show()
     # This is the S_lam factor required to convert N_lam = counts/sec/Ang to
     # F_lam = 1e-17 erg/s/cm^2/Ang, i.e.  F_lam = S_lam*N_lam
     sensfunc_obs = Nlam_to_Flam(wave, zeropoint_obs)

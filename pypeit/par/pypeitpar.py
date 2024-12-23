@@ -1898,7 +1898,8 @@ class FluxCalibratePar(ParSet):
     For a table with the current keywords, defaults, and descriptions,
     see :ref:`parameters`.
     """
-    def __init__(self, extinct_correct=None, extinct_file=None, extrap_sens=None, use_archived_sens = False):
+    def __init__(self, extinct_correct=None, extinct_file=None, extrap_sens=None, use_archived_sens=False,
+                 add_blaze=False):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -1944,6 +1945,10 @@ class FluxCalibratePar(ParSet):
         dtypes['use_archived_sens'] = bool
         descr['use_archived_sens'] = 'Use an archived sensfunc to flux calibration'
 
+        defaults['add_blaze'] = False
+        dtypes['add_blaze'] = bool
+        descr['add_blaze'] = 'If True, the blaze function will be applied to the sensitivity function.'
+
         # Instantiate the parameter set
         super(FluxCalibratePar, self).__init__(list(pars.keys()),
                                                  values=list(pars.values()),
@@ -1955,7 +1960,7 @@ class FluxCalibratePar(ParSet):
     @classmethod
     def from_dict(cls, cfg):
         k = np.array([*cfg.keys()])
-        parkeys = ['extinct_correct', 'extinct_file', 'extrap_sens', 'use_archived_sens']
+        parkeys = ['extinct_correct', 'extinct_file', 'extrap_sens', 'use_archived_sens', 'add_blaze']
 
         badkeys = np.array([pk not in parkeys for pk in k])
         if np.any(badkeys):

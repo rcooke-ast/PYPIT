@@ -11,6 +11,7 @@ from astropy.io import fits
 
 from pypeit import msgs
 from pypeit import dataPaths
+from pypeit.sensfunc import SensFunc
 
 class SensFileArchive(ABC):
     """Class for managing archived SensFunc files. This is an abstract class that instantitates 
@@ -91,4 +92,38 @@ class DEIMOSSensFileArchive(SensFileArchive):
                                                          to_pkg=to_pkg)
         msgs.info(f"Found archived sensfile '{archived_file}'")
         return archived_file
+
+    class HIRESSensFileArchive(SensFileArchive):
+        """SensFileArchive subclass specifically for keck_deimos SensFuncs."""
+        spec_name = "keck_hires"
+
+        def get_archived_sensfile(self, fitsfile, symlink_in_pkgdir=False):
+            """Get the full path name of the archived sens file that can be used to flux calibrate a given fitsfile
+
+            Args:
+                fitsfile (str): The fitsfile to find an archived SensFunc file for.
+                symlink_in_pkgdir (bool): Create a symlink to the the cached file in the package directory (default False)
+
+            Return:
+                str: The full pathname of the archived SensFunc.
+
+            Raises:
+                PypeItError: Raised an archived SensFunc file can't be found for the given fits file.
+            """
+            hdu = fits.open(fitsfile)
+            # get echelle orders in this spec1d file
+            orders = [h.header['HIERARCH ECH_ORDER'] for h in hdu if h.name.startswith('OBJ')]
+            archived_file = '/Users/dpelliccia/Desktop/adap2020/test_code/sens_keck_hires_RED_orders_93-35_sensfunc.fits'
+            sensobjs = SensFunc.from_file(archived_file, chk_version=False)
+            arx_orders = sensobjs.sens['ECH_ORDERS']
+            # check if all orders in the spec1d file are in the archived file
+            if not set(orders).issubset(set(arx_orders)):
+                msgs.warn("Not all echelle orders in the spec1d file are in the archived sensfunc file. The following "
+                          "orders will not be flux calib: {0}".format(set(orders) - set(arx_orders)))
+
+            # to_pkg = 'symlink' if symlink_in_pkgdir else None
+            # archived_file = dataPaths.sensfunc.get_file_path(f"keck_deimos_{grating}_sensfunc.fits",
+            #                                                  to_pkg=to_pkg)
+            msgs.info(f"Found archived sensfile '{archived_file}'")
+            return archived_file
 
