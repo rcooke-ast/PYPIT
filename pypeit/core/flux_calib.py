@@ -789,6 +789,7 @@ def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta
             Extrapolate the sensitivity function (instead of crashing out)
         blaze (`numpy.ndarray`_, optional):
             Blaze array for the spectrum to be flux calibrated.
+            It is already in log10 units.
             This is used to add the blaze to the sensitivity function.
 
     Returns
@@ -836,9 +837,10 @@ def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta
                        "your sensfunc.")
     # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'k')
     if blaze is not None:
+        blaze_per_ang = blaze[wave_mask] - np.log10(_delta_wave[wave_mask])
         # Correct the sensitivity function for the blaze
         msgs.info("Adding the blaze to the sensitivity function")
-        zeropoint_obs += 2.5 * blaze
+        zeropoint_obs += 2.5 * blaze_per_ang
     # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'r')
     # plt.show()
     # This is the S_lam factor required to convert N_lam = counts/sec/Ang to
