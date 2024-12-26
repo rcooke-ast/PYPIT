@@ -840,7 +840,7 @@ def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta
         blaze_per_ang = blaze[wave_mask] - np.log10(_delta_wave[wave_mask])
         # Correct the sensitivity function for the blaze
         msgs.info("Adding the blaze to the sensitivity function")
-        zeropoint_obs += 2.5 * blaze_per_ang
+        zeropoint_obs[wave_mask] += 2.5 * blaze_per_ang
     # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'r')
     # plt.show()
     # This is the S_lam factor required to convert N_lam = counts/sec/Ang to
