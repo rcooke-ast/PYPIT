@@ -586,6 +586,30 @@ The script usage can be displayed by calling the script with the
 
 .. include:: help/pypeit_show_pixflat.rst
 
+.. _pypeit_chk_flexure:
+
+pypeit_chk_flexure
+--------------------
+
+This script takes as input one or multiple `spec2d*.fits` or `spec1d*.fits` files
+and print to screen the spatial or spectral flexure correction applied to each file.
+Standard command-line calls are:
+
+.. code-block:: console
+
+    pypeit_chk_flexure Science/spec2d_r230417_01033-frb22022_LRISr_20230417T082242.672.fits --spat
+
+or:
+
+.. code-block:: console
+
+    pypeit_chk_flexure Science/spec1d_r230417_01033-frb22022_LRISr_20230417T082242.672.fits --spec
+
+The script usage can be displayed by calling the script with the
+``-h`` option:
+
+.. include:: help/pypeit_chk_flexure.rst
+
 pypeit_show_2dspec
 ------------------
 
