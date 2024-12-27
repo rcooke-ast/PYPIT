@@ -243,14 +243,20 @@ class DataCube(datamodel.DataContainer):
         file_suffix = os.path.basename(self.filename) if parset['output_filename'] \
             is None else parset['output_filename']
         spec1d_filename = os.path.join(_output_dir, 'spec1d_' + file_suffix)
+        spec1d_filename = spec1d_filename + '.fits' if not spec1d_filename.endswith('.fits') else spec1d_filename
         spec2d_filename = os.path.join(_output_dir, 'spec2d_{:s}'.format(file_suffix))
+        spec2d_filename = spec2d_filename + '.fits' if not spec2d_filename.endswith('.fits') else spec2d_filename
+        out_whitelight = datacube.get_output_whitelight_filename(_output_dir, file_suffix)
+
         if os.path.isfile(spec1d_filename) and not overwrite:
             msgs.error("File exists: {:s}".format(spec1d_filename) + msgs.newline() +
                           "Set overwrite=True to overwrite")
         if os.path.isfile(spec2d_filename) and not overwrite:
             msgs.error("File exists: {:s}".format(spec2d_filename) + msgs.newline() +
                           "Set overwrite=True to overwrite")
-        
+        if os.path.isfile(out_whitelight) and not overwrite:
+            msgs.error("File exists: {:s}".format(out_whitelight) + msgs.newline() +
+                          "Set overwrite=True to overwrite")
         if parset['manual'] is not None and len(parset['manual']) > 0:
             manual_dict= ManualCubeExtractionObj.parse(parset['manual']).to_dict()
             manual_position = (manual_dict['spatx'][0], manual_dict['spaty'][0])
@@ -260,7 +266,7 @@ class DataCube(datamodel.DataContainer):
         # Datacube's are counts/second, so set the exposure time to 1
         exptime = 1.0
         # TODO :: Avoid transposing these large cubes
-        sobjs, spec2d = datacube.extract_point_source(
+        sobjs, spec2d, wl_img, wl_ivar, wl_gpm = datacube.extract_point_source(
             self.wave, self.flux.T, self.ivar.T, self.bpm.T, self._wcs, exptime, 
             fluxed=self.fluxed, whitelight_range=parset['whitelight_range'],
             fwhm = parset['fwhm'], snr_thresh = parset['snr_thresh'], 
@@ -275,6 +281,15 @@ class DataCube(datamodel.DataContainer):
         all_spec2d[spec2d.detector.name] = spec2d
         # Build header for spec2d
         all_spec2d.write_to_fits(spec2d_filename, pri_hdr=fits.Header(), overwrite=overwrite)
+        # Write out the white light image
+        # TODO This is replicated code from datacube.make_whitelight, clean this up. 
+        msgs.info("Saving white light image as: {0:s}".format(out_whitelight))
+        primary_hdu = fits.PrimaryHDU(wl_img.T, header=self._wcs.to_header())
+        primary_hdu.header['EXTNAME'] = 'WHITELIGHT'
+        ivar_hdu = fits.ImageHDU(wl_ivar.T, name='IVAR')
+        gpm_hdu = fits.ImageHDU(wl_gpm.astype(np.uint8).T, name='GPM')
+        hdul = fits.HDUList([primary_hdu, ivar_hdu, gpm_hdu])
+        hdul.writeto(out_whitelight, overwrite=overwrite)
 
 
 
@@ -1342,7 +1357,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                             wave, self.output_dir, outfile, whitelight_range=wl_wvrng, overwrite=self.overwrite)
                     
                 # No need to proceed and store arrays - we are writing individual datacubes
-                # TESTING JFH
+                # TESTING JFH, always store
                 #continue
 
             # Store the information if we are combining multiple frames
@@ -1536,6 +1551,14 @@ class SlicerIFUCoAdd3D(CoAdd3D):
         if not self.combine and not self.align:
             return
 
+        # If we are combining frames, check that alignment has been requested. 
+        # If not, then print out a warning. 
+        if self.combine and not self.align:
+            msgs.warn("Combining frames without aligning them." + msgs.newline() +
+                    "Make sure that you know what you are doing!" + msgs.newline() + 
+                    "Even if your frames are taken at the same position," + msgs.newline() + 
+                    "alignment is still recommended because of differential atmospheric refraction.")
+
         # If the user is aligning or combining, the spatial scale of the output cubes needs to be consistent.
         # Set the spatial and spectral scales of the output datacube
         self._dspat, self._dwv = datacube.set_voxel_sampling(self._spatscale, self._specscale,
@@ -1635,8 +1658,8 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                                                     slice_subpixel=self.slice_subpixel,
                                                     skip_subpix_weights=self.skip_subpix_weights,
                                                     correct_dar=self.correct_dar)
-                if self.combine & self.align:                   
-                    # If we are combining aligned cubes, then we need to save these for the final combination
+                if self.combine: #& self.align:                   
+                    # If we are combining cubes, then we need to save these for the final combination
                     # with sigma clipping below, otherwise no need to store these and use more memory
                     if ff == 0: 
                         stack_shape = (self.numfiles,) + flxcube.shape
@@ -1670,7 +1693,7 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                         cube_wcs, flxcube.T, ivarcube.T, np.logical_not(bpmcube.T), wave, self.output_dir, outfile, 
                         whitelight_range=wl_wvrng, overwrite=self.overwrite)
 
-            if self.combine & self.align: 
+            if self.combine: #& self.align: 
                 sigrej = 3.0
                 maxiters = 10                
                 sci_list_out, var_list_out, combined_gpm, nused = combine.weighted_combine(

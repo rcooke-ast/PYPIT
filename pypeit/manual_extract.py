@@ -248,7 +248,6 @@ class ManualCubeExtractionObj(datamodel.DataContainer):
     def __init__(self, spatx=None, spaty=None, fwhm=None, boxcar_rad=None):
         # Parse
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
-        embed()
         d = dict([(k,values[k]) for k in args[1:]])
         # Setup the DataContainer
         datamodel.DataContainer.__init__(self, d=d)

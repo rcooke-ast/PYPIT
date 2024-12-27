@@ -74,7 +74,8 @@ def gaussian2D(tup, intflux, xo, yo, sigma_x, sigma_y, theta, offset):
     return gtwod.ravel()
 
 
-def fitGaussian2D(image, ivar=None, gpm=None, fwhm=3.0, nsigma=5.0, mask_edge=4, median_filter=False, norm=False, verbose=False):
+def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None, 
+                  fwhm=3.0, nsigma=5.0, mask_edge=4, median_filter=False, norm=False, verbose=False):
     """
     Fit a 2D Gaussian to an input image. It is recommended that the input image
     is scaled to a maximum value that is ~1, so that all fit parameters are of
@@ -91,6 +92,11 @@ def fitGaussian2D(image, ivar=None, gpm=None, fwhm=3.0, nsigma=5.0, mask_edge=4,
         from the image will be used to compute the inverse variance. Default is None.
     gpm : `numpy.ndarray`_, optional
         A good pixel mask. Pixels that are True are good. Default is None,
+    init_obj_position : tuple, optional
+        The initial guess for the object position in the image with format
+        (x, y). If set, the 2D Gaussian fit will be performed with the position constrainted
+        to be within plus or minus fwhm/3 in x and y. If not set, the position will be determined
+        by running DAOStarFinder on the image. Default is None.
     fwhm : float, optional
         The FWHM of the image in pixels. This is used to estimate the initial
         guess for the Gaussian fit, the fit bounds, and the median filter kernel
@@ -150,40 +156,42 @@ def fitGaussian2D(image, ivar=None, gpm=None, fwhm=3.0, nsigma=5.0, mask_edge=4,
     edgemask[:, :mask_edge] = edgemask[:, -mask_edge:] = True
     totmask = edgemask | np.logical_not(_gpm)
 
-    if median_filter:
-        int_kernel = np.clip(round(fwhm), 3, None)
-        if int_kernel % 2 == 0:
-            int_kernel += 1 if fwhm > int_kernel else -1
-        objfind_image = signal.medfilt2d(image, kernel_size=int_kernel)
-        mean_objfind, median_objfind, std_objfind = sigma_clipped_stats(
-            objfind_image[np.logical_not(totmask)], sigma=3.0)
-        ivar_objfind = np.full_like(image, 1.0/std_objfind**2)
-    else:
-        objfind_image = image
-        ivar_objfind = _ivar
-        mean_objfind, median_objfind, std_objfind = sigma_clipped_stats(
-            objfind_image[np.logical_not(totmask)], sigma=3.0)        
+    if init_obj_position is None: 
+        if median_filter:
+            int_kernel = np.clip(round(fwhm), 3, None)
+            if int_kernel % 2 == 0:
+                int_kernel += 1 if fwhm > int_kernel else -1
+            objfind_image = signal.medfilt2d(image, kernel_size=int_kernel)
+            mean_objfind, median_objfind, std_objfind = sigma_clipped_stats(
+                objfind_image[np.logical_not(totmask)], sigma=3.0)
+            ivar_objfind = np.full_like(image, 1.0/std_objfind**2)
+        else:
+            objfind_image = image
+            ivar_objfind = _ivar
+            mean_objfind, median_objfind, std_objfind = sigma_clipped_stats(
+                objfind_image[np.logical_not(totmask)], sigma=3.0)        
 
-    # Create a border mask to exclude junk at the edges
-    daofind = DAOStarFinder(
-        fwhm=fwhm, threshold=nsigma, sharphi=2.0, 
-        exclude_border=True, brightest=1)
-    sources = daofind((objfind_image - median_objfind)*np.sqrt(ivar_objfind), mask=totmask)
-    if verbose: 
-        msgs.info('DAOStarFinder brightest source properties')
-        for col in sources.colnames:
-            if col not in ('id', 'npix'):
-                sources[col].info.format = '%.2f'  # for consistent table output
-        sources.pprint(max_width=76)
-    if sources is None:
-        display.show_image((objfind_image*np.logical_not(totmask)*np.sqrt(ivar_objfind)).T, 
-                           chname='S/N objfind_image', cuts=(-2.0, 5.0))
-        embed()
-        msgs.error("No sources found in the image. Try lowering the significance threshold, "
-                   f"nsigma = {nsigma:.1f}{msgs.newline()}"
-                    "or adjust the DAOStarFinder parameters.")
+        # Create a border mask to exclude junk at the edges
+        daofind = DAOStarFinder(
+            fwhm=fwhm, threshold=nsigma, sharphi=2.0, 
+            exclude_border=True, brightest=1)
+        sources = daofind((objfind_image - median_objfind)*np.sqrt(ivar_objfind), mask=totmask)
+        if verbose: 
+            msgs.info('DAOStarFinder brightest source properties')
+            for col in sources.colnames:
+                if col not in ('id', 'npix'):
+                    sources[col].info.format = '%.2f'  # for consistent table output
+            sources.pprint(max_width=76)
+        if sources is None:
+            display.show_image((objfind_image*np.logical_not(totmask)*np.sqrt(ivar_objfind)).T, 
+                            chname='S/N objfind_image', cuts=(-2.0, 5.0))
+            embed()
+            msgs.error("No sources found in the image. Try lowering the significance threshold, "
+                    f"nsigma = {nsigma:.1f}{msgs.newline()}"
+                        "or adjust the DAOStarFinder parameters.")
 
-    init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
+        init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
+        
     initial_guess = (1, init_obj_position[0], init_obj_position[1], fwhm*fwhm2sigma, fwhm*fwhm2sigma, 0, 0)
     bounds = ([0,      init_obj_position[0]-fwhm/3.0, init_obj_position[1]-fwhm/3.0, fwhm/6.0, fwhm/6.0, -np.pi, -np.inf],
               [np.inf, init_obj_position[0]+fwhm/3.0, init_obj_position[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
@@ -224,8 +232,8 @@ def fitGaussian2D(image, ivar=None, gpm=None, fwhm=3.0, nsigma=5.0, mask_edge=4,
     msgs.info(f"Optimal extraction of the brightest object gives{msgs.newline()}"
             f"     -----------------------------{msgs.newline()}"
             f"     | (x, y)  = {xobj:6.2f}, {yobj:6.2f}  |{msgs.newline()}"
-            f"     |   Flux  = {flux_opt:6.2f}          |{msgs.newline()}"
-            f"     |   Sigma = {sigma_opt:6.2f}          |{msgs.newline()}"
+            f"     |   Flux  = {flux_opt:7.3f}          |{msgs.newline()}"
+            f"     |   Sigma = {sigma_opt:7.3f}          |{msgs.newline()}"
             f"     |   S/N   = {flux_opt/sigma_opt:6.2f}          |{msgs.newline()}"
             f"     -----------------------------{msgs.newline()}")
     #if np.isclose(np.sum(image),-13.229953612054073):
@@ -390,6 +398,14 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         SpecObjs object containing the extracted spectrum
     spec2dobj : :class:`~pypeit.spec2dobj.Spec2DObj`
         Spec2DObj object containing a psuedo 2D spectrum for visualization purposes
+    wl_img : `numpy.ndarray`_
+        A whitelight image of the input cube (of type `numpy.ndarray`_) which is the average flux
+        over the set of pixels in the wavelength range specified by wavemin and wavemax that
+        are not masked by the badpixel mask cube or the sigma clipping mask.
+    wl_ivar : `numpy.ndarray`_
+        The inverse variance of the whitelight image.
+    wl_gpm : `numpy.ndarray`_
+        A good pixel mask for the whitelight image. A value of True indicates a good pixel.
     """
     if whitelight_range is None:
         whitelight_range = [np.min(wave), np.max(wave)]
@@ -433,7 +449,8 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     wl_img, wl_ivar, wl_gpm = make_whitelight_fromcube(_flxcube, _ivarcube, _gpmcube, wave=wave,
                                       wavemin=whitelight_range[0], wavemax=whitelight_range[1])
     popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(
-        wl_img, ivar=wl_ivar, gpm=wl_gpm, fwhm = fwhm/platescale, nsigma=snr_thresh, norm=False)
+        wl_img, ivar=wl_ivar, gpm=wl_gpm, init_obj_position=manual_position, 
+        fwhm = fwhm/platescale, nsigma=snr_thresh, norm=False)
     gaussian_position = popt[1], popt[2]
     # Object location for extraction 
     if manual_position is not None:
@@ -706,7 +723,7 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         
 
     # Return the specobjs object and the spec2d object
-    return sobjs, spec2d
+    return sobjs, spec2d, wl_img, wl_ivar, wl_gpm
 
 def whitelight_objfind_qa(wl_img, wl_ivar, wl_gpm, gaussian_model, gaussian_position, init_obj_position, 
                           manual_position=None, channel_prefix=''):
@@ -1839,7 +1856,7 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     if sn_smooth_npix is None:
         sn_smooth_npix = int(np.round(0.1 * wave_spec.size))
     rms_sn, weights = coadd.sn_weights(utils.array_to_explist(flux_stack), utils.array_to_explist(ivar_stack), utils.array_to_explist(mask_stack),
-                                       sn_smooth_npix=sn_smooth_npix, weight_method=weight_method)
+                                       sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, verbose=True)
 
     # Because we pass back a weights array, we need to interpolate to assign each detector pixel a weight
     all_wghts = numframes*[np.ones(_sciImg[0].shape)]
@@ -2277,7 +2294,7 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
                 # Now apply the DAR correction and any user-supplied offsets
                 this_ra_int += ra_corr + _ra_offset[fr]
                 #this_dec_int += dec_corr + _dec_offset[fr]
-                # TODO: Below was a hack to fix bug for KCWI. I suspected the WCS was being set incorrectly, 
+                # TODO: Below was a hack to fix bug for KCRM. I suspected the WCS was being set incorrectly, 
                 # which was true, and this hack fixed it. Old code is th eline above. 
                 this_dec_int += dec_corr - _dec_offset[fr]
                 # Convert world coordinates to voxel coordinates, then histogram

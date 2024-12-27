@@ -487,7 +487,6 @@ def reidentify(spec, spec_arxiv_in, wave_soln_arxiv_in, line_list,
     ----------------
     November 2018 by J.F. Hennawi. Built from an initial version of cross_match code written by Ryan Cooke.
     """
-    # TODO -- Break up this morass into multiple methods
 
     # Determine the seed for scipy.optimize.differential_evolution optimizer. Just take the sum of all the elements
     # and round that to an integer
@@ -636,7 +635,9 @@ def reidentify(spec, spec_arxiv_in, wave_soln_arxiv_in, line_list,
                 ', stretch = {:5.4f}'.format(stretch_vec[iarxiv]) +
                 ', wv_cen = {:7.1f}'.format(wcen[iarxiv]) +
                 ', disp = {:5.3f}'.format(disp[iarxiv]))
-            plt.ylim(1.2*use_spec.min(), 1.5 *use_spec.max())
+            plt.ylim(10.0, 1.5*use_spec.max())
+            #plt.ylim(1.2*use_spec.min(), 1.5 *use_spec.max())
+            plt.yscale('log')
             plt.legend()
             plt.show()
 
@@ -671,7 +672,7 @@ def reidentify(spec, spec_arxiv_in, wave_soln_arxiv_in, line_list,
                 if pdiff[bstpx] < match_toler:
                     # Using the arxiv arc wavelength solution, search for the nearest line in the line list
                     bstwv = np.abs(wvdata - wvval_arxiv[bstpx])
-                    # This is a good wavelength match if it is within match_toler disperion elements
+                    # This is a good wavelength match if it is within match_toler daisperion elements
                     if bstwv[np.argmin(bstwv)] < match_toler*disp_arxiv[iarxiv]:
                         line_indx = np.append(line_indx, np.argmin(bstwv))  # index in the line list array wvdata of this match
                         det_indx = np.append(det_indx, iline)             # index of this line in the detected line array detections
@@ -724,6 +725,7 @@ def reidentify(spec, spec_arxiv_in, wave_soln_arxiv_in, line_list,
     if patt_dict_slit['nmatch'] < 3:
         msgs.warn(f'Insufficient number of good reidentifications: {patt_dict_slit["nmatch"]} (at least 3 required).')
         patt_dict_slit['acceptable'] = False
+
 
     return detections, spec_cont_sub, patt_dict_slit
 
@@ -1145,7 +1147,6 @@ def full_template(spec, lamps, par, ok_mask, det, binspectral, nsnippet=2, slit_
         obs_spec_i = spec[:,slit]
         # get FWHM for this slit
         fwhm = set_fwhm(par, measured_fwhm=measured_fwhms[slit], verbose=True)
-        
         # Find the shift
         ncomb = temp_spec.size
         # Remove the continuum before adding the padding to obs_spec_i
@@ -1295,6 +1296,7 @@ def full_template(spec, lamps, par, ok_mask, det, binspectral, nsnippet=2, slit_
                                                               cc_shift_range=par['cc_shift_range'],
                                                               cc_thresh=0.1, fwhm=fwhm,
                                                               stretch_func=par['stretch_func'])
+            
             # Deal with IDs
             sv_det.append(j0 + detections)
             try:
