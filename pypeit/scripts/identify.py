@@ -59,7 +59,7 @@ class Identify(scriptbase.ScriptBase):
         import json
 
         import numpy as np
-                
+
         from pypeit import msgs
         from pypeit.spectrographs.util import load_spectrograph
         from pypeit.core.gui.identify import Identify
@@ -101,7 +101,7 @@ class Identify(scriptbase.ScriptBase):
         solnname = WaveCalib.construct_file_name(msarc.calib_key, calib_dir=msarc.calib_dir)
         wv_calib = WaveCalib.from_file(solnname, chk_version=chk_version) \
                         if os.path.exists(solnname) and args.solution else None
-        
+
         # Load the calibration frame (if it exists and is desired).  Bad-pixel mask
         # set to any flagged pixel in Arc.
         wavecal = BuildWaveCalib(msarc, slits, spec, par, lamps, det=args.det,
@@ -220,7 +220,7 @@ class Identify(scriptbase.ScriptBase):
                         wv_fits_arr[-1].fwhm = measured_fwhms[slit_val]
                     waveCalib = wv_calib
 
-            
+
                 else:
                     if np.any(wv_calib.wv_fits):
                         wv_calib.wv_fits[slit_val] = None
@@ -274,7 +274,7 @@ class Identify(scriptbase.ScriptBase):
         # If we just want the normal one-trace output
         else:
             arccen, arc_maskslit = wavecal.extract_arcs(slitIDs=[int(args.slits)])
-            
+
             # Get the non-linear count level
             if msarc.is_mosaic:
                 # if this is a mosaic we take the maximum value among all the detectors
@@ -332,6 +332,3 @@ class Identify(scriptbase.ScriptBase):
                                 lines_fit_ord = np.array(lines_fit_ord),
                                 custom_wav = np.array(custom_wav),
                                 custom_wav_ind = np.array(custom_wav_ind) )
-            
-
-
