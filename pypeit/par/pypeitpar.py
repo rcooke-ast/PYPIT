@@ -3473,7 +3473,8 @@ class EdgeTracePar(ParSet):
                                    'the text should be a comma separated list of pixel ranges (in the x direction) ' \
                                    'to be excluded and the detector number. For example, the following string ' \
                                    '1:0:20,1:300:400  would select two regions in det=1 between pixels 0 and 20 ' \
-                                   'and between 300 and 400.'
+                                   'and between 300 and 400. If only a single range is provided, do not forget the commas, i.e. ' \
+                                   '1:0:20, is the correct format.'
 
         defaults['follow_span'] = 20
         dtypes['follow_span'] = int

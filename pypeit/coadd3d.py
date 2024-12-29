@@ -365,6 +365,8 @@ class DARcorrection:
         dar_full = np.rad2deg((self.refa-cnsa) * np.tan(z) + (self.refb-cnsb) * np.tan(z)**3)
         return dar_full
 
+    # TODO Make parangle and cosdec arguments to this function rather than class attributes
+    # required upon init, since they are not required to calculate the DAR dispersion, only 
     def correction(self, waves):
         """
         Main routine that computes the DAR correction for both right ascension and declination.
