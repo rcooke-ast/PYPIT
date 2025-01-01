@@ -237,7 +237,8 @@ def identify_ech_orders(arcspec, echangle, xdangle, dispname,
     fig = plt.figure(figsize=(12, 8))
     plt.clf()
     ax = plt.gca()
-    ax.plot(arcspec[:,10])
+    ax.plot(arcspec[:,-16])
+    ax.plot(np.roll(arc_composite[:,2],-100))
     plt.show()
 
     # Predict the echelle order coverage and wavelength solution
