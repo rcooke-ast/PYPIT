@@ -630,13 +630,16 @@ class PypeItFileController(QObject):
 
 class SetupGUIController(QObject):
     """Controller for the PypeIt setup gui. It is responsible for initializing the GUI,
-    and performing actions requested by the user.
+    and performing actions requested by the user. On startup, it will process arguments in the same
+    way the non-GUI version of pypeit_setup does.
     
     Args:
-        logfile ()
+        app:          QApplication for this Qt app.
+        verbosity:    Verbosity to use when logging.
+        spectrograph: Optional spectrograph to use on startup.
+        root:         Optional root path for raw data on startup.
+        extension:    Optional extension to look for when scanning raw data on startup.
     """
-
-
 
     def __init__(self, app : QApplication, verbosity : int, spectrograph : str|None=None, root : list[str]|str|None=None, extension : str|None=".fits"):
         super().__init__()

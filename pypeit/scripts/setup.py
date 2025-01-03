@@ -5,7 +5,6 @@ This script generates files to setup a PypeIt run
 .. include:: ../include/links.rst
 """
 import argparse
-from datetime import datetime, timezone
 from IPython import embed
 
 from pypeit.scripts import scriptbase
