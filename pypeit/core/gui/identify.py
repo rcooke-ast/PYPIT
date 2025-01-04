@@ -787,7 +787,7 @@ class Identify:
                     while True:
                         try:
                             print('')
-                            order_str = input("Which orders were we fitting? e.g. (32:39):  ")    
+                            order_str = input("Which orders were we fitting? e.g. (32:39):  ")
                             order_vec = np.arange(int(order_str[1:3]), int(order_str[4:6])+1)
                             if len(order_vec) != len(wvcalib.wv_fits):
                                 msgs.warn(f'The number of orders in this list, {order_vec} '+msgs.newline()+
