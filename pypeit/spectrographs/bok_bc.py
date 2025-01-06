@@ -75,7 +75,7 @@ class BokBCSpectrograph(spectrograph.Spectrograph):
             elif 'CCDSUM' in headarr[0]:  # For really old files
                 binspatial, binspec = headarr[0]['CCDSUM'].split()
             else: 
-                msgs.error("Could not find a header key word for the binning")
+                msgs.error("Could not find a header keyword for the binning")
             return parse.binning2string(binspatial, binspec)
         elif meta_key == 'mjd':
             """
