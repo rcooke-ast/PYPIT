@@ -1911,7 +1911,6 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
     msgs.info("Automatic finding routine found {0:d} objects".format(len(sobjs)))
 
     # Fit the object traces
-    tolerance = 0.1  # Tolerance in pixels before the trace fit has converged
     if len(sobjs) > 0:
         msgs.info('Fitting the traces')
         # Note the transpose is here to pass in the TRACE_SPAT correctly.
