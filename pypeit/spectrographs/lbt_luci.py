@@ -30,36 +30,6 @@ class LBTLUCISpectrograph(spectrograph.Spectrograph):
     telescope = telescopes.LBTTelescopePar()
     url = 'https://scienceops.lbto.org/luci/'
 
-#    def __init__(self):
-#        super().__init__()
-#        self.timeunit = 'isot'
-
-#    @classmethod
-#    def default_pypeit_par(cls):
-#        """
-#        Return the default parameters to use for this instrument.
-#        
-#        Returns:
-#            :class:`~pypeit.par.pypeitpar.PypeItPar`: Parameters required by
-#            all of PypeIt methods.
-#        """
-#        par = super().default_pypeit_par()
-#
-#        # Processing steps
-#        turn_off = dict(use_illumflat=False, use_biasimage=False, use_overscan=False,
-#                        use_darkimage=False)
-#        par.reset_all_processimages_par(**turn_off)
-#
-#        par['calibrations']['biasframe']['exprng'] = [None, 0.001]
-#        par['calibrations']['darkframe']['exprng'] = [999999, None]     # No dark frames
-#        par['calibrations']['pinholeframe']['exprng'] = [999999, None]  # No pinhole frames
-#        par['calibrations']['pixelflatframe']['exprng'] = [0, None]
-#        par['calibrations']['traceframe']['exprng'] = [0, None]
-#        par['calibrations']['arcframe']['exprng'] = [None, 60]
-#        par['calibrations']['standardframe']['exprng'] = [1, 200]
-#        par['scienceframe']['exprng'] = [200, None]
-#        return par
-
     def init_meta(self):
         """
         Define how metadata are derived from the spectrograph files.
@@ -279,136 +249,6 @@ class LBTLUCISpectrograph(spectrograph.Spectrograph):
         msgs.warn('Cannot determine if frames are of type {0}.'.format(ftype))
         return np.zeros(len(fitstbl), dtype=bool)
 
-#    Routine deprecated, as the problems with the sensitivity function
-#    are fixed by including the blaze in the model.
-#    def tweak_standard(self, wave_in, counts_in, counts_ivar_in, gpm_in,
-#                       meta_table, debug=False):
-#        """
-#
-#        This routine is for performing instrument/disperser specific tweaks
-#        to standard stars so that sensitivity function fits will be well
-#        behaved.
-#
-#        With regard to LUCI 1/2 the very edges of the spectra for both zJspec
-#        and HKspec configurations will be masked removing the extremely steep
-#        drop in sensitivity, predominantly at the blue edge of the spectrum.
-#
-#        This function is copied and adapted from keck_mosfire.py
-#
-#        Parameters
-#        ----------
-#        wave_in: (float np.ndarray) shape = (nspec,)
-#            Input standard star wavelenghts
-#        counts_in: (float np.ndarray) shape = (nspec,)
-#            Input standard star counts
-#        counts_ivar_in: (float np.ndarray) shape = (nspec,)
-#            Input inverse variance of standard star counts
-#        gpm_in: (bool np.ndarray) shape = (nspec,)
-#            Input good pixel mask for standard
-#        meta_table: (astropy.table)
-#            Table containing meta data that is slupred from the specobjs object. See unpack_object routine in specobjs.py
-#            for the contents of this table.
-#
-#        Returns
-#        -------
-#        wave_out: (float np.ndarray) shape = (nspec,)
-#            Output standard star wavelenghts
-#        counts_out: (float np.ndarray) shape = (nspec,)
-#            Output standard star counts
-#        counts_ivar_out: (float np.ndarray) shape = (nspec,)
-#            Output inverse variance of standard star counts
-#        gpm_out: (bool np.ndarray) shape = (nspec,)
-#            Output good pixel mask for standard
-#
-#        """
-#
-#        wvmin = np.min(wave_in)
-#        wvmax = np.max(wave_in)
-#
-#        if wvmin < 10000 and wvmax > 13000:
-#            coverage = 'zJspec'
-#
-#        elif wvmin < 15500 and wvmax > 22000:
-#            coverage = 'HKspec'
-#
-#        else:
-#            coverage = None
-#            msgs.warn('Standard tweaks not available for provided wavelength '
-#                      'range')
-#            msgs.warn('Continuing without tweaking standard spectrum.')
-#
-#        if 'G200 LoRes' in meta_table['DISPNAME'] and coverage is not None:
-#
-#            # Setting the wavelength edges depending on the wavelength
-#            # and the spectrograph LUCI1/LUCI2
-#
-#            if 'lbt_luci2' in meta_table['PYP_SPEC'] and coverage == 'zJspec':
-#
-#                wave_blue = 9800  # blue wavelength below which there is a strong
-#                # drop off in flux
-#                wave_red = 13400  # red wavelength above which there is a strong
-#                # drop off in flux combined with telluric absorption
-#
-#            elif 'lbt_luci2' in meta_table['PYP_SPEC'] and coverage == 'HKspec':
-#
-#                wave_blue = 13000  # blue wavelength below which there is a
-#                # strong
-#                # drop off in flux
-#                wave_red = 25000 # red wavelength above which there is a strong
-#                # drop off in flux combined with telluric absorption
-#
-#            if 'lbt_luci1' in meta_table['PYP_SPEC'] and coverage == 'zJspec':
-#
-#                wave_blue = 9400  # blue wavelength below which there is a
-#                # strong
-#                # drop off in flux
-#                wave_red = 13400  # red wavelength above which there is a strong
-#                # drop off in flux combined with telluric absorption
-#
-#            elif 'lbt_luci1' in meta_table['PYP_SPEC'] and coverage == 'HKspec':
-#
-#                wave_blue = 15200  # blue wavelength below which there is a
-#                # strong drop off in flux
-#                wave_red = 23100 # red wavelength above which there is a strong
-#                # drop off in flux combined with telluric absorption
-#
-#
-#            msgs.warn('Tweaking standard spectrum coverage.')
-#            msgs.warn('Standard spectrum reduced wavelenghts: {} to {'
-#                         '}'.format(wave_blue, wave_red))
-#            msgs.warn('For the telluric correction (pypeit_tellfilt), '
-#                      'make sure to mask the excluded regions.')
-#
-#
-#
-#
-#            exclusion_region = (wave_in < wave_blue) | (wave_in > wave_red)
-#
-#            wave = wave_in.copy()
-#            counts = counts_in.copy()
-#            gpm = gpm_in.copy()
-#            counts_ivar = counts_ivar_in.copy()
-#            # By setting the wavelengths to zero, we guarantee that the sensitvity function will only be computed
-#            # over the valid wavelength region. While we could mask, this would still produce a wave_min and wave_max
-#            # for the zeropoint that includes the bad regions, and the polynomial fits will extrapolate crazily there
-#            wave[exclusion_region] = 0.0
-#            counts[exclusion_region] = 0.0
-#            counts_ivar[exclusion_region] = 0.0
-#            gpm[exclusion_region] = False
-#            if debug:
-#               from matplotlib import pyplot as plt
-#               counts_sigma = np.sqrt(utils.inverse(counts_ivar_in))
-#               plt.plot(wave_in, counts, color='red', alpha=0.7, label='apodized flux')
-#               plt.plot(wave_in, counts_in, color='black', alpha=0.7, label='flux')
-#               plt.plot(wave_in, counts_sigma, color='blue', alpha=0.7, label='flux')
-#               plt.axvline(wave_blue, color='blue')
-#               plt.axvline(wave_red, color='red')
-#               plt.legend()
-#               plt.show()
-#            return wave, counts, counts_ivar, gpm
-#        else:
-#            return wave_in, counts_in, counts_ivar_in, gpm_in
-
 # Detector information from official LBT LUCI website
 # https://sites.google.com/a/lbto.org/luci/instrument-characteristics/detector
  # Parameter 	 LUCI1 	 LUCI2
@@ -467,7 +307,7 @@ class LBTLUCI1Spectrograph(LBTLUCISpectrograph):
                 platescale = 0.2500
             elif camera == 'N3.75 Camera':
                 platescale = 0.1190
-            elif camera == 'N30 Camera': # currently untested
+            elif camera == 'N30 Camera': # currently untested but should work in principle
                 platescale = 0.0150
             else:
                 msgs.error("Camera not recognized (options: N1.8, N3.75, N30)")
@@ -555,18 +395,14 @@ class LBTLUCI1Spectrograph(LBTLUCISpectrograph):
         # Parameters should work for long-slit N1.8 camera exposures
         # N3.75 camera and/or multi-slit may require careful adjustment
         par['scienceframe']['process']['spat_flexure_correct'] = True
-        par['scienceframe']['process']['spat_flexure_maxlag'] = 100
-        par['scienceframe']['process']['spat_flexure_cont_samp'] = 2
-        par['scienceframe']['process']['spat_flexure_sigdetect'] = 2.
+        par['scienceframe']['process']['spat_flexure_maxlag'] = 20
+        par['scienceframe']['process']['spat_flexure_sigdetect'] = 100
         par['calibrations']['tiltframe']['process']['spat_flexure_correct'] = True
-        par['calibrations']['tiltframe']['process']['spat_flexure_maxlag'] = 100
-        par['calibrations']['tiltframe']['process']['spat_flexure_cont_samp'] = 2
-        par['calibrations']['tiltframe']['process']['spat_flexure_sigdetect'] = 2.
-
+        par['calibrations']['tiltframe']['process']['spat_flexure_maxlag'] = 20
+        par['calibrations']['tiltframe']['process']['spat_flexure_sigdetect'] = 100
 
         par['scienceframe']['process']['sigclip'] = 20.0
         par['scienceframe']['process']['satpix'] = 'nothing'
-        # par['scienceframe']['process']['satpix'] = 'reject'
         
         # Sensitivity function parameters
         par['sensfunc']['algorithm'] = 'IR'
@@ -665,7 +501,6 @@ class LBTLUCI1Spectrograph(LBTLUCISpectrograph):
             par['calibrations']['wavelengths']['method'] = 'full_template'
             par['calibrations']['wavelengths']['reid_arxiv'] = \
                 'lbt_luci1_g200_HK.fits'
-            # par['calibrations']['wavelengths']['ech_fix_format'] = False
 
         return par
 
@@ -710,7 +545,7 @@ class LBTLUCI2Spectrograph(LBTLUCISpectrograph):
                 platescale = 0.2500
             elif camera == 'N3.75 Camera':
                 platescale = 0.1178
-            elif camera == 'N30 Camera': # currently untested
+            elif camera == 'N30 Camera': # currently untested but should work in principle
                 platescale = 0.0150
             else:
                 msgs.error("Camera not recognized (options: N1.8, N3.75, N30)")
@@ -786,13 +621,11 @@ class LBTLUCI2Spectrograph(LBTLUCISpectrograph):
         # Flexure
         par['flexure']['spec_method'] = 'skip'
         par['scienceframe']['process']['spat_flexure_correct'] = True
-        par['scienceframe']['process']['spat_flexure_maxlag'] = 100
-        par['scienceframe']['process']['spat_flexure_cont_samp'] = 2
-        par['scienceframe']['process']['spat_flexure_sigdetect'] = 2.
+        par['scienceframe']['process']['spat_flexure_maxlag'] = 20
+        par['scienceframe']['process']['spat_flexure_sigdetect'] = 100
         par['calibrations']['tiltframe']['process']['spat_flexure_correct'] = True
-        par['calibrations']['tiltframe']['process']['spat_flexure_maxlag'] = 100
-        par['calibrations']['tiltframe']['process']['spat_flexure_cont_samp'] = 2
-        par['calibrations']['tiltframe']['process']['spat_flexure_sigdetect'] = 2.
+        par['calibrations']['tiltframe']['process']['spat_flexure_maxlag'] = 20
+        par['calibrations']['tiltframe']['process']['spat_flexure_sigdetect'] = 100
 
         par['scienceframe']['process']['sigclip'] = 20.0
         par['scienceframe']['process']['satpix'] = 'nothing'
@@ -890,6 +723,5 @@ class LBTLUCI2Spectrograph(LBTLUCISpectrograph):
             par['calibrations']['wavelengths']['method'] = 'full_template'
             par['calibrations']['wavelengths']['reid_arxiv'] = \
                 'lbt_luci2_g200_HK.fits'
-            # par['calibrations']['wavelengths']['ech_fix_format'] = False
 
         return par
