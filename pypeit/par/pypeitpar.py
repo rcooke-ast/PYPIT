@@ -223,7 +223,11 @@ class ProcessImagesPar(ParSet):
                  use_pixelflat=None, use_illumflat=None, use_specillum=None,
                  use_pattern=None, subtract_scattlight=None, scattlight=None, subtract_continuum=None,
                  spat_flexure_correct=None, spat_flexure_maxlag=None,
+<<<<<<< HEAD
                  spat_flexure_cont_samp=None, spat_flexure_sigdetect=None):
+=======
+                 spat_flexure_sigdetect=None, spat_flexure_vrange=None):
+>>>>>>> develop
 
         # Grab the parameter names and values from the function
         # arguments
@@ -373,6 +377,19 @@ class ProcessImagesPar(ParSet):
         dtypes['spat_flexure_sigdetect'] = [int, float]
         descr['spat_flexure_sigdetect'] = 'Detection threshold for spatial flexure cross-correlation peaks.'
 
+        defaults['spat_flexure_sigdetect'] = 5.
+        dtypes['spat_flexure_sigdetect'] = [int, float]
+        descr['spat_flexure_sigdetect'] = 'Sigma threshold above fluctuations in the '  \
+                                          'Sobel-filtered significance image, used for '  \
+                                          'finding slit edges in the spectral image, '  \
+                                          'for which the spatial flexure is computed.'
+
+        defaults['spat_flexure_vrange'] = None
+        dtypes['spat_flexure_vrange'] = tuple
+        descr['spat_flexure_vrange'] = 'This parameter is used when generating the QA plot for the spatial flexure. ' \
+                                       'It sets the data range (vmin,vmax) used by the colormap when showing the ' \
+                                       'spectral image. If None, the range is set automatically.'
+
         defaults['combine'] = 'mean'
         options['combine'] = ProcessImagesPar.valid_combine_methods()
         dtypes['combine'] = str
@@ -470,9 +487,8 @@ class ProcessImagesPar(ParSet):
         parkeys = ['trim', 'apply_gain', 'orient', 'use_biasimage', 'subtract_continuum',
                    'subtract_scattlight', 'scattlight', 'use_pattern', 'use_overscan',
                    'overscan_method', 'overscan_par', 'use_darkimage', 'dark_expscale',
-                   'spat_flexure_correct', 'spat_flexure_maxlag',
-                   'spat_flexure_cont_samp', 'spat_flexure_sigdetect',
-                   'use_illumflat', 'use_specillum',
+                   'spat_flexure_correct', 'spat_flexure_maxlag', 'spat_flexure_sigdetect',
+                   'spat_flexure_vrange', 'use_illumflat', 'use_specillum',
                    'empirical_rn', 'shot_noise', 'noise_floor', 'use_pixelflat', 'combine',
                    'scale_to_mean', 'correct_nonlinear', 'satpix', #'calib_setup_and_bit',
                    'n_lohi', 'mask_cr', 'lamaxiter', 'grow', 'clip', 'comb_sigrej', 'rmcompact',
@@ -2989,15 +3005,16 @@ class WavelengthSolutionPar(ParSet):
         defaults['fwhm'] = 4.
         dtypes['fwhm'] = [int, float]
         descr['fwhm'] = 'Spectral sampling of the arc lines. This is the FWHM of an arcline in ' \
-                        'binned pixels of the input arc image'
+                        'binned pixels of the input arc image. Note that this is used also in the ' \
+                        'wave tilts calibration.'
 
         defaults['fwhm_fromlines'] = True
         dtypes['fwhm_fromlines'] = bool
         descr['fwhm_fromlines'] = 'Estimate spectral resolution in each slit using the arc lines. '\
-                                  'If True, the estimated FWHM will override ``fwhm`` only in '\
+                                  'If True, the estimated FWHM will override ``fwhm`` in '\
                                   'the determination of the wavelength solution (including the ' \
                                   'calculation of the threshold for the solution RMS, see ' \
-                                  '``rms_thresh_frac_fwhm``), but not for the wave tilts calibration.' \
+                                  '``rms_thresh_frac_fwhm``), and ALSO for the wave tilts calibration.' \
 
         defaults['fwhm_spat_order'] = 0
         dtypes['fwhm_spat_order'] = int
@@ -3276,9 +3293,10 @@ class EdgeTracePar(ParSet):
                  minimum_slit_dlength=None, dlength_range=None, minimum_slit_length=None,
                  minimum_slit_length_sci=None, length_range=None, minimum_slit_gap=None, clip=None,
                  order_match=None, order_offset=None, add_missed_orders=None, order_width_poly=None,
-                 order_gap_poly=None, order_spat_range=None, overlap=None, use_maskdesign=None,
-                 maskdesign_maxsep=None, maskdesign_step=None, maskdesign_sigrej=None, pad=None,
-                 add_slits=None, add_predict=None, rm_slits=None, maskdesign_filename=None):
+                 order_gap_poly=None, order_fitrej=None, order_outlier=None, order_spat_range=None,
+                 overlap=None, max_overlap=None, use_maskdesign=None, maskdesign_maxsep=None,
+                 maskdesign_step=None, maskdesign_sigrej=None, pad=None, add_slits=None,
+                 add_predict=None, rm_slits=None, maskdesign_filename=None):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -3662,11 +3680,12 @@ class EdgeTracePar(ParSet):
         descr['add_missed_orders'] = 'For any Echelle spectrograph (fixed-format or otherwise), ' \
                                      'attempt to add orders that have been missed by the ' \
                                      'automated edge tracing algorithm.  For *fixed-format* ' \
-                                     'Echelles, this is based on the expected positions on ' \
+                                     'echelles, this is based on the expected positions on ' \
                                      'on the detector.  Otherwise, the detected orders are ' \
-                                     'modeled and roughly used to predict the locations of ' \
-                                     'missed orders; see additional parameters ' \
-                                     '``order_width_poly``, ``order_gap_poly``, and ' \
+                                     'modeled and used to predict the locations of missed ' \
+                                     'orders; see additional parameters ' \
+                                     '``order_width_poly``, ``order_gap_poly``, ' \
+                                     '``order_fitrej``, ``order_outlier``, and ' \
                                      '``order_spat_range``.'
         
         defaults['order_width_poly'] = 2
@@ -3681,6 +3700,24 @@ class EdgeTracePar(ParSet):
                                   'gap between orders as a function of the order spatial ' \
                                   'position.  See ``add_missed_orders``.'
         
+        defaults['order_fitrej'] = 3.
+        dtypes['order_fitrej'] = [int, float]
+        descr['order_fitrej'] = 'When fitting the width of and gap beteween echelle orders with ' \
+                                'Legendre polynomials, this is the sigma-clipping threshold ' \
+                                'when excluding data from the fit.  See ``add_missed_orders``.'
+
+        defaults['order_outlier'] = None
+        dtypes['order_outlier'] = [int, float]
+        descr['order_outlier'] = 'When fitting the width of echelle orders with Legendre ' \
+                                 'polynomials, this is the sigma-clipping threshold used to ' \
+                                 'identify outliers.  Orders clipped by this threshold are ' \
+                                 '*removed* from further consideration, whereas orders clipped ' \
+                                 'by ``order_fitrej`` are excluded from the polynomial fit ' \
+                                 'but are not removed.  Note this is *only applied to the order ' \
+                                 'widths*, not the order gaps.  If None, no "outliers" are ' \
+                                 'identified/removed.  Should be larger or equal to ' \
+                                 '``order_fitrej``.'
+
         dtypes['order_spat_range'] = list
         descr['order_spat_range'] = 'The spatial range of the detector/mosaic over which to ' \
                                     'predict order locations.  If None, the full ' \
@@ -3694,6 +3731,19 @@ class EdgeTracePar(ParSet):
                            'that have an abnormally short separation.  For those short slits, ' \
                            'the code attempts to convert the short slits into slit gaps.  This ' \
                            'is particularly useful for blue orders in Keck-HIRES data.'
+
+        defaults['max_overlap'] = None
+        dtypes['max_overlap'] = float
+        descr['max_overlap'] = 'When adding missing echelle orders based on where existing ' \
+                               'orders are found, the prediction can yield overlapping orders.  ' \
+                               'The edges of these orders are adjusted to eliminate the ' \
+                               'overlap, and orders can be added up over the spatial range of ' \
+                               'the detector set by ``order_spate_range``.  If this value is ' \
+                               'None, orders are added regardless of how much they overlap.  ' \
+                               'If not None, this defines the maximum fraction of an order ' \
+                               'spatial width that can overlap with other orders.  For example, ' \
+                               'if ``max_overlap=0.5``, any order that overlaps its neighboring ' \
+                               'orders by more than 50% will not be added as a missing order.'
 
         defaults['use_maskdesign'] = False
         dtypes['use_maskdesign'] = bool
@@ -3800,9 +3850,10 @@ class EdgeTracePar(ParSet):
                    'bound_detector', 'minimum_slit_dlength', 'dlength_range', 'minimum_slit_length',
                    'minimum_slit_length_sci', 'length_range', 'minimum_slit_gap', 'clip',
                    'order_match', 'order_offset',  'add_missed_orders', 'order_width_poly',
-                   'order_gap_poly', 'order_spat_range', 'overlap', 'use_maskdesign',
-                   'maskdesign_maxsep', 'maskdesign_step', 'maskdesign_sigrej',
-                   'maskdesign_filename', 'pad', 'add_slits', 'add_predict', 'rm_slits']
+                   'order_gap_poly', 'order_fitrej', 'order_outlier', 'order_spat_range','overlap',
+                   'max_overlap', 'use_maskdesign', 'maskdesign_maxsep', 'maskdesign_step',
+                   'maskdesign_sigrej', 'maskdesign_filename', 'pad', 'add_slits', 'add_predict',
+                   'rm_slits']
 
         badkeys = np.array([pk not in parkeys for pk in k])
         if np.any(badkeys):
@@ -3840,6 +3891,10 @@ class EdgeTracePar(ParSet):
         if not self['auto_pca'] and self['sync_predict'] == 'pca':
             warnings.warn('sync_predict cannot be pca if auto_pca is False.  Setting to nearest.')
             self['sync_predict'] = 'nearest'
+        if self['max_overlap'] is not None and (self['max_overlap'] < 0 or self['max_overlap'] > 1):
+            msgs.error('If defined, max_overlap must be in the range [0,1].')
+        if self['order_outlier'] is not None and self['order_outlier'] < self['order_fitrej']:
+            msgs.warn('Order outlier threshold should not be less than the rejection threshold.')
 
 
 class WaveTiltsPar(ParSet):
