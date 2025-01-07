@@ -791,7 +791,7 @@ class RawImage:
         if self.nimg > 1:
             msgs.error('CODING ERROR: Must use a single image (single detector or detector '
                        'mosaic) to determine spatial flexure.')
-        
+
         # get filename for QA
         basename = f'{io.remove_suffix(self.filename)}_{self.spectrograph.get_det_name(self.det)}'
         outdir = str(Path(slits.calib_dir).parent) if slits.calib_dir is not None else None

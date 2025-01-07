@@ -778,7 +778,7 @@ class PypeItImage(datamodel.DataContainer):
         # units
         # TODO: Instead raise an error if they're not the same
         new_units = self.units if self.units == other.units else None
-        
+
         # Spatial flexure
         spat_flexure = self.spat_flexure
         if other.spat_flexure is not None and spat_flexure is not None \
