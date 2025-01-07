@@ -185,12 +185,7 @@ class CombineImage:
                 rawImage.update_mask('SATURATION', action='turn_off')
             # Get a simple boolean good-pixel mask for all the unmasked pixels
             gpm_stack[kk] = rawImage.select_flag(invert=True)
-            # Spatial flexure
-            if rawImage.spat_flexure is not None:
-                spat_flexure[kk] = rawImage.spat_flexure
 
-            file_list.append(rawImage.filename)
-            
         # Check that all exposure times are consistent
         # TODO: JFH suggests that we move this to calibrations.check_calibrations
         if np.any(np.absolute(np.diff(exptime)) > 0):
@@ -201,9 +196,6 @@ class CombineImage:
         else:
             comb_texp = exptime[0]
             
-        # Average the spatial flexure
-        comb_spat_flex = np.mean(spat_flexure)
-
         # Check that all spatial flexure values are consistent
         comb_spat_flex = None
         # remove nan (None) values. Since spat_flex is a float array,
@@ -301,8 +293,7 @@ class CombineImage:
                                        PYP_SPEC=rawImage.PYP_SPEC,
                                        units='e-' if self.par['apply_gain'] else 'ADU',
                                        exptime=comb_texp, noise_floor=self.par['noise_floor'],
-                                       shot_noise=self.par['shot_noise'],
-                                       spat_flexure=comb_spat_flex)
+                                       shot_noise=self.par['shot_noise'])
 
         # Internals
         # TODO: Do we need these?

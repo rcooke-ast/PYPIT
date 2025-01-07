@@ -223,11 +223,7 @@ class ProcessImagesPar(ParSet):
                  use_pixelflat=None, use_illumflat=None, use_specillum=None,
                  use_pattern=None, subtract_scattlight=None, scattlight=None, subtract_continuum=None,
                  spat_flexure_correct=None, spat_flexure_maxlag=None,
-<<<<<<< HEAD
-                 spat_flexure_cont_samp=None, spat_flexure_sigdetect=None):
-=======
                  spat_flexure_sigdetect=None, spat_flexure_vrange=None):
->>>>>>> develop
 
         # Grab the parameter names and values from the function
         # arguments
@@ -367,16 +363,8 @@ class ProcessImagesPar(ParSet):
         
         defaults['spat_flexure_maxlag'] = 20
         dtypes['spat_flexure_maxlag'] = int
-        descr['spat_flexure_maxlag'] = 'Maximum allowed spatial flexure shift in pixels.'
+        descr['spat_flexure_maxlag'] = 'Maximum of possible spatial flexure correction, in pixels'
         
-        defaults['spat_flexure_cont_samp'] = 30
-        dtypes['spat_flexure_cont_samp'] = int
-        descr['spat_flexure_cont_samp'] = 'Continuum sampling interval for spatial flexure cross-correlation.'
-        
-        defaults['spat_flexure_sigdetect'] = 3.
-        dtypes['spat_flexure_sigdetect'] = [int, float]
-        descr['spat_flexure_sigdetect'] = 'Detection threshold for spatial flexure cross-correlation peaks.'
-
         defaults['spat_flexure_sigdetect'] = 5.
         dtypes['spat_flexure_sigdetect'] = [int, float]
         descr['spat_flexure_sigdetect'] = 'Sigma threshold above fluctuations in the '  \
