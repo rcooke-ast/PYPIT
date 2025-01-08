@@ -498,7 +498,8 @@ def solve_poly_ratio(wave, flux, ivar, flux_ref, ivar_ref, norder, mask = None, 
     return ymult, (result.x, wave_min, wave_max), flux_rescale, ivar_rescale, outmask
 
 
-def interp_oned(wave_new, wave_old, flux_old, ivar_old, gpm_old, log10_blaze_function=None, sensfunc=False, kind='cubic'):
+def interp_oned(wave_new, wave_old, flux_old, ivar_old, gpm_old, log10_blaze_function=None, 
+                sensfunc=False, kind='cubic'):
     """
     Interpolate a 1D spectrum onto a new wavelength grid.
 
@@ -988,16 +989,13 @@ def robust_median_ratio(flux, ivar, flux_ref, ivar_ref, mask=None, mask_ref=None
     """
 
     ## Mask for reference spectrum and your spectrum
-    if mask is None:
-        mask = ivar > 0.0
-    if mask_ref is None:
-        mask_ref = ivar_ref > 0.0
+    _mask = ivar > 0.0 if mask is None else mask
+    _mask_ref = ivar_ref > 0.0 if mask_ref is None else mask_ref
 
     nspec = flux.size
     snr_ref = flux_ref * np.sqrt(ivar_ref)
-    
-    snr_ref_best = np.fmax(np.percentile(snr_ref[mask_ref], ref_percentile),snr_do_not_rescale)
-    calc_mask = (snr_ref > snr_ref_best) & mask_ref & mask
+    snr_ref_best = np.fmax(np.percentile(snr_ref[_mask_ref], ref_percentile),snr_do_not_rescale)
+    calc_mask = (snr_ref > snr_ref_best) & _mask_ref & _mask
 
     snr_resc = flux*np.sqrt(ivar)
     snr_resc_med = np.median(snr_resc[calc_mask])

@@ -157,28 +157,22 @@ class CoAdd1D:
         #save the order stacks from the echelle reduction
         if self.order_stacks is not None and (fits.getheader(self.spec1dfiles[0])['PYPELINE'] == 'Echelle'):
             for setup_num, setup_val in enumerate(self.unique_setups):
-                if len(self.unique_setups) > 1:
-                    wave_stack = np.array(self.order_stacks[0][setup_num])
-                    flux_stack = np.array(self.order_stacks[1][setup_num])
-                    ivar_stack = np.array(self.order_stacks[2][setup_num])
-                    mask_stack = np.array(self.order_stacks[3][setup_num]).astype(int)
-                    sigma_stack = np.sqrt(utils.inverse(ivar_stack))
-                else:
-                    wave_stack = np.array(self.order_stacks[0])
-                    flux_stack = np.array(self.order_stacks[1])
-                    ivar_stack = np.array(self.order_stacks[2])
-                    mask_stack = np.array(self.order_stacks[3]).astype(int)
-                    sigma_stack = np.sqrt(utils.inverse(ivar_stack))
+                wave_stack = utils.explist_to_array(self.order_stacks[0][setup_num])[0]
+                flux_stack = utils.explist_to_array(self.order_stacks[1][setup_num])[0]
+                ivar_stack = utils.explist_to_array(self.order_stacks[2][setup_num])[0]
+                mask_stack = utils.explist_to_array(self.order_stacks[3][setup_num])[0].astype(int)
+                sigma_stack = np.sqrt(utils.inverse(ivar_stack))
                 orderstack = OrderStack(wave_stack, 
                                         flux_stack, 
                                         ivar_stack=ivar_stack, 
                                         mask_stack=mask_stack, 
                                         sigma_stack=sigma_stack,
+                                        ech_orders=self.ech_orders[setup_num],
                                         PYP_SPEC=self.spectrograph.name, 
                                         ext_mode=self.par['ex_value'], fluxed=self.par['flux_value'],
                                         setup_name = setup_val)
                 orderstack.head0 = self.headers[setup_num]
-                orderstack.to_file(coaddfile.split('.fits')[0] + '_orderstack' + setup_val + '.fits', history=history, overwrite=overwrite)
+                orderstack.to_file(coaddfile.split('.fits')[0] + '_orderstack_' + setup_val + '.fits', history=history, overwrite=overwrite)
         # Write
         onespec.to_file(coaddfile, history=history, overwrite=overwrite)
 
@@ -440,7 +434,8 @@ class EchelleCoAdd1D(CoAdd1D):
         """
 
         # Load the data
-        self.waves, self.fluxes, self.ivars, self.gpms, self.weights_sens, self.headers = self.load()
+        self.waves, self.fluxes, self.ivars, self.gpms, self.weights_sens, self.ech_orders, self.headers = self.load()
+        # TODO modify coadd.ech_combspec to take the ech_orders for QA purposes. 
         wave_grid_mid, (wave_coadd, flux_coadd, ivar_coadd, gpm_coadd),  order_stacks \
                 = coadd.ech_combspec(self.waves, self.fluxes, self.ivars, self.gpms, self.weights_sens,
                                      setup_ids=self.unique_setups,
@@ -476,8 +471,8 @@ class EchelleCoAdd1D(CoAdd1D):
                 List of sensfuncfiles. This is aligned with spec1dfiles and objids
 
         Returns:
-            tuple: waves, fluxes, ivars, gpms, header. Each array has shape =
-            (nspec, norders, nexp)
+            tuple: waves, fluxes, ivars, gpms, weights, ech_orders, header. Each array has shape =
+            (nspec, norders, nexp), except for ech_orders which is a 1D array of length norders.
 
         """
         nexp = len(spec1dfiles)
@@ -493,8 +488,9 @@ class EchelleCoAdd1D(CoAdd1D):
             # echelle coadding code to combine echelle and multislit data
             if wave_iexp.ndim == 1:
                 wave_iexp, flux_iexp, ivar_iexp, gpm_iexp = np.atleast_2d(wave_iexp).T, np.atleast_2d(flux_iexp).T, np.atleast_2d(ivar_iexp).T, np.atleast_2d(gpm_iexp).T
+            ech_orders_iexp = meta_spec['ECH_ORDERS']
             weights_sens_iexp = sensfunc.SensFunc.sensfunc_weights(sensfuncfiles[iexp], wave_iexp,
-                                                                   ech_order_vec=meta_spec['ECH_ORDERS'],
+                                                                   ech_order_vec=ech_orders_iexp,
                                                                    debug=self.debug,
                                                                    chk_version=self.chk_version)
             # Allocate arrays on first iteration
@@ -503,8 +499,8 @@ class EchelleCoAdd1D(CoAdd1D):
                 waves = np.zeros(wave_iexp.shape + (nexp,))
                 fluxes = np.zeros_like(waves)
                 ivars = np.zeros_like(waves)
-                weights_sens = np.zeros_like(waves)
                 gpms = np.zeros_like(waves, dtype=bool)
+                weights_sens = np.zeros_like(waves)
                 header_out = header
                 if 'RA' in sobjs[indx][0].keys() and 'DEC' in sobjs[indx][0].keys():
                     header_out['RA_OBJ']  = sobjs[indx][0]['RA']
@@ -520,7 +516,7 @@ class EchelleCoAdd1D(CoAdd1D):
                 msgs.error('The shape (Nspec,Norder) of spectra is not consistent between exposures. '
                            'These spec1ds cannot be coadded at this time.')
 
-        return waves, fluxes, ivars, gpms, weights_sens, header_out
+        return waves, fluxes, ivars, gpms, weights_sens, ech_orders_iexp, header_out
 
     def load(self):
         """
@@ -558,15 +554,15 @@ class EchelleCoAdd1D(CoAdd1D):
         _sensfuncfiles = np.asarray(self.sensfuncfile)
         _spec1dfiles = np.asarray(self.spec1dfiles)
         _objids = np.asarray(self.objids)
-        waves, fluxes, ivars, gpms, weights_sens, headers = [], [], [], [], [], []
-        combined = [waves, fluxes, ivars, gpms, weights_sens, headers]
+        waves, fluxes, ivars, gpms, weights_sens, ech_orders, headers = [], [], [], [], [], [], []
+        combined = [waves, fluxes, ivars, gpms, weights_sens, ech_orders, headers]
         for uniq_setup in self.unique_setups:
             setup_indx = _setup == uniq_setup
             loaded = self.load_ech_arrays(_spec1dfiles[setup_indx], _objids[setup_indx], _sensfuncfiles[setup_indx])
             for c, l in zip(combined, loaded):
                 c.append(l)
 
-        return waves, fluxes, ivars, gpms, weights_sens, headers
+        return waves, fluxes, ivars, gpms, weights_sens, ech_orders, headers
 
 
 class SlicerIFUCoAdd1D(MultiSlitCoAdd1D):

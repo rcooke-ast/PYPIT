@@ -157,6 +157,7 @@ class SensFunc(scriptbase.ScriptBase):
 
 
 
+
         # If the .sens file was passed in read it and overwrite default parameters
         if args.sens_file is not None:
             sensFile = inputfiles.SensFile.from_file(args.sens_file)

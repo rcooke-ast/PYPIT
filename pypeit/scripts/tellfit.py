@@ -94,6 +94,7 @@ class TellFit(scriptbase.ScriptBase):
         from pypeit.spectrographs.util import load_spectrograph
         from pypeit.core import telluric
         from pypeit import inputfiles
+        import numpy as np
 
         # Set the verbosity, and create a logfile if verbosity == 2
         msgs.set_logfile_and_verbosity('tellfit', args.verbosity)
@@ -217,6 +218,31 @@ class TellFit(scriptbase.ScriptBase):
                                              debug_init=args.debug, disp=args.debug,
                                              debug=args.debug, show=args.plot,
                                              chk_version=args.chk_version)
+        elif par['telluric']['objmodel']=='fluxref':
+            wave, wave_grid_mid, flux, ivar, gpm, meta_spec, header = telluric.general_spec_reader(
+                args.spec1dfile, ret_flam=True, chk_version=args.chk_version)
+            # TODO Add this stuff to the OrderStaack
+            meta_spec['core']['AIRMASS'] = 1.2
+            reffile = '/Users/joe/XQR-30/Flux-calibrated-spectra/SDSSJ0100+2802_fcal_spec.fits'
+            from qso_fitting.data.data_utils import read_xqr30_spectrum, xqr30_metal_bpm
+            wave_ref, flux_ref, ivar_ref, _gpm_ref = read_xqr30_spectrum(reffile)
+            metal_bpm = xqr30_metal_bpm(reffile, wave_ref, grow_factor=1.5)
+            gpm_ref = _gpm_ref & np.logical_not(metal_bpm)
+            TelFluxRef = telluric.fluxref_telluric(
+                wave, flux, ivar, gpm, wave_ref, flux_ref, ivar_ref, gpm_ref, meta_spec['core']['AIRMASS'], 
+                par['telluric']['telgridfile'], func=par['telluric']['func'], model=par['telluric']['model'],
+                ech_orders=meta_spec['bonus']['ECH_ORDER'], polyorder=par['telluric']['polyorder'],
+                tell_npca=par['telluric']['tell_npca'], teltype=par['telluric']['teltype'], 
+                delta_coeff_bounds=par['telluric']['delta_coeff_bounds'],
+                minmax_coeff_bounds=par['telluric']['minmax_coeff_bounds'],
+                pix_shift_bounds=par['telluric']['pix_shift_bounds'],
+                only_orders=par['telluric']['only_orders'],
+                maxiter=par['telluric']['maxiter'],
+                popsize=par['telluric']['popsize'],
+                tol=par['telluric']['tol'],
+                debug_init=args.debug, disp=args.debug,
+                debug=args.debug)
+
         else:
             msgs.error("Object model is not supported yet. Must be 'qso', 'star', or 'poly'.")
 

@@ -26,6 +26,7 @@ from pypeit.core import fitting
 from pypeit import specobjs
 from pypeit import utils
 from pypeit import onespec
+from pypeit import orderstack
 
 from pypeit.spectrographs.util import load_spectrograph
 
@@ -550,8 +551,13 @@ def tellfit_chi2(theta, flux, thismask, arg_dict):
     totalmask = thismask & model_gpm
     if not np.any(totalmask):
         return np.inf       # If everyting is masked retrun infinity
-    else:
-        chi_vec = totalmask * (flux - tell_model*obj_model) * np.sqrt(flux_ivar)
+    else: 
+        if 'flux_ref_fit' in arg_dict['obj_dict'] and arg_dict['obj_dict']['flux_ref_fit']: 
+            var_tot = utils.inverse(flux_ivar) + utils.inverse(arg_dict['obj_dict']['ivar_ref'])
+            ivar_tot = utils.inverse(var_tot)
+            chi_vec = totalmask*(flux*obj_model - tell_model*arg_dict['obj_dict']['flux_ref']) * np.sqrt(ivar_tot)
+        else:
+            chi_vec = totalmask * (flux - tell_model*obj_model) * np.sqrt(flux_ivar)
         robust_scale = 2.0
         huber_vec = scipy.special.huber(robust_scale, chi_vec)
         loss_function = np.sum(huber_vec * totalmask)
@@ -767,6 +773,23 @@ def general_spec_reader(specfile, ret_flam=False, chk_version=False, ret_order_s
         counts_gpm = spec.mask.astype(bool)
         spect_dict = spec.spect_meta
         head = spec.head0
+    if 'DMODCLS' in hdul[1].header and hdul[1].header['DMODCLS'] == 'OrderStack':
+        # Load
+        spec = orderstack.OrderStack.from_file(specfile, chk_version=chk_version)
+        # Unpack
+        wave = spec.wave_stack
+        # wavelength grid evaluated at the bin centers, uniformly-spaced in lambda or log10-lambda/velocity.
+        # see core.wavecal.wvutils.py for more info.
+        # variable defaults to None if datamodel for this is also None (which is the case for spec1d file).
+        wave_grid_mid = spec.wave_stack
+        counts = spec.flux_stack
+        counts_ivar = spec.ivar_stack
+        counts_gpm = spec.mask_stack.astype(bool)
+        # TODO Output a meta dict
+        spect_dict = spec.spect_meta
+        spect_dict={}
+        head = spec.head0
+        bonus['ECH_ORDER'] = spec.ech_orders
     else:
         sobjs = specobjs.SpecObjs.from_fitsfile(specfile, chk_version=chk_version)
         # TODO: What bug?  Is it fixed now?  How can we test if it's fixed?
@@ -848,6 +871,150 @@ def save_coadd1d_tofits(outfile, wave, flux, ivar, gpm, wave_grid_mid=None, spec
     # TODO: We need a better way of assigning the header...
     spec.head0 = header
     spec.to_file(outfile, overwrite=overwrite)
+
+
+
+##############
+# fluxref model #
+##############
+def init_fluxref_model(obj_params, iord, wave, flux, ivar, gpm, tellmodel):
+    """
+    Initializes a sensitivity function model fit for joint sensitivity function
+    and telluric fitting by setting up the obj_dict and bounds.
+
+    Parameters
+    ----------
+    obj_params : :obj:`dict`
+        Dictionary of object parameters
+    iord : :obj:`int`
+        The slit/order in question
+    wave : `numpy.ndarray`_, float, shape is (nspec,)
+        Wavelength array for the spectrum that is being rescaled. 
+    flux : `numpy.ndarray`_, float, shape is (nspec,)
+        Flux array for the spectrum that is being rescaled. 
+    ivar : `numpy.ndarray`_, float, shape is (nspec,)
+        Inverse variance of the spectrum that is being rescaled. 
+    gpm : `numpy.ndarray`_, bool, shape is (nspec,)
+        Good pixel mask for the spectrum that is being rescaled. 
+    tellmodel : `numpy.ndarray`_, float, shape is (nspec,)
+        Telluric absorption model guess
+
+    Returns
+    -------
+    obj_dict : :obj:`dict`
+        Dictionary of object paramaters for joint sensitivity function telluric
+        model fitting
+    bounds_obj : :obj:`list`
+        List of bounds for each parameter in the joint sensitivity function and
+        telluric model fit.
+    """
+    flux_ref, ivar_ref, gpm_ref, _ = coadd.interp_oned(
+        wave, obj_params['wave_ref'], obj_params['flux_ref'], obj_params['ivar_ref'], 
+        obj_params['gpm_ref'], kind='cubic')
+    # TODO, think about how to create this error on the oversampled grid??
+    
+
+    # Model parameter guess for starting the optimizations
+    #flux_ref = scipy.interpolate.interp1d(obj_params['wave_ref'],
+    #                                      obj_params['flux_ref'], kind='linear',
+    #                                      bounds_error=False, fill_value=-1e20)(wave)
+    # TODO, think about how to create this error on the oversampled grid??
+    #ivar_ref = scipy.interpolate.interp1d(obj_params['wave_ref'],
+    #                                      obj_params['ivar_ref'], kind='linear',
+    #                                      bounds_error=False, fill_value=-1e20)(wave)
+    
+    flux_ref_wave_gpm = (wave >= obj_params['wave_ref'].min()) \
+                        & (wave <= obj_params['wave_ref'].max())
+    if np.any(np.logical_not(flux_ref_wave_gpm)):
+        msgs.warn('Your data extends beyond the range covered by the reference object spectrum. '
+                  'Proceeding by masking these regions, but consider using another reference object')
+    flux_ref_gpm = flux_ref_wave_gpm & gpm_ref & np.isfinite(tellmodel)
+ 
+    #tellmodel_ivar = (100.0*utils.inverse(tellmodel))**2 # This is just a bogus noise to give  S/N of 100
+    #tellmodel_mask = np.isfinite(tellmodel) & mask
+
+    #if obj_params['mask_lyman_a']:
+    #    mask = mask & (wave>1216.15*(1+obj_params['z_obj']))
+
+    # As solve_poly_ratio is designed to multiply a scale factor into the flux, and not the flux_ref, we
+    # set the flux_ref to be the data here, i.e. flux
+    if not np.any(flux_ref_gpm): 
+        embed()
+    scale, fit_tuple, flux_scale, ivar_scale, outmask = coadd.solve_poly_ratio(
+        wave, flux, ivar, flux_ref*tellmodel, ivar_ref*utils.inverse(np.square(tellmodel)), 
+        obj_params['polyorder_vec'][iord], mask=gpm, mask_ref=flux_ref_gpm, func=obj_params['func'], 
+        model=obj_params['model'], scale_max=1e5)
+    # TODO JFH Sticky = False seems to recover better from bad initial fits. Maybe we should change this since poly ratio
+    # uses a different optimizer.
+
+    coeff, wave_min, wave_max = fit_tuple
+    if(wave_min != wave.min()) or (wave_max != wave.max()):
+        msgs.error('Problem with the wave_min or wave_max')
+    # Polynomial model
+    polymodel = coadd.poly_model_eval(coeff, obj_params['func'], obj_params['model'], wave, wave_min, wave_max)
+
+    # Polynomial coefficient bounds
+    bounds_obj = [(np.fmin(np.abs(this_coeff)*obj_params['delta_coeff_bounds'][0], obj_params['minmax_coeff_bounds'][0]),
+                   np.fmax(np.abs(this_coeff)*obj_params['delta_coeff_bounds'][1], obj_params['minmax_coeff_bounds'][1]))
+                   for this_coeff in coeff]
+    # Create the obj_dict
+    obj_dict = dict(wave=wave, wave_min=wave_min, wave_max=wave_max, 
+                    flux_ref_fit=True, 
+                    polymodel=polymodel, 
+                    func=obj_params['func'], model=obj_params['model'], 
+                    polyorder=obj_params['polyorder_vec'][iord], 
+                    flux_ref=flux_ref, ivar_ref = ivar_ref, flux_ref_gpm=flux_ref_gpm,
+                    bounds_obj=bounds_obj, init_obj_opt_theta = coeff)
+
+    if obj_params['debug']:
+        plt.plot(wave, flux, drawstyle='steps-mid', alpha=0.7, zorder=5, label='observed spectrum')
+        plt.plot(wave, flux_scale, drawstyle='steps-mid', alpha=0.7, zorder=4, label='poly_model*(observed spectrum)')
+        plt.plot(wave, flux_ref*tellmodel, label='flux_ref*tellmodel')
+        plt.plot(wave, polymodel, label='poly_model')
+        plt.xlim(wave[flux_ref_wave_gpm].min(), wave[flux_ref_wave_gpm].max())
+        flux_med = utils.fast_running_median(flux_ref[flux_ref_wave_gpm], 20)
+        plt.ylim(-0.3 * np.abs(flux_med.min()), 1.3 * flux_med.max())
+        plt.legend()
+        plt.title('Polynomial Rescaling Guess for iord={:d}'.format(iord + 1))   # +1 to account 0-index starting
+        plt.show()
+
+
+    return obj_dict, bounds_obj
+
+def eval_fluxref_model(theta, obj_dict):
+    """
+    Routine to evaluate a polynomial model to be multiplied into the observed data for comparison 
+    with a reference flux. 
+
+    Parameters
+    ----------
+    theta : `numpy.ndarray`_
+        Array containing the polynomial coefficients.
+        shape (ntheta,)
+
+    obj_dict : dict
+       Dictionary containing additional arguments needed to evaluate the star model.
+
+    Returns
+    -------
+    ymult : `numpy.ndarray`_
+        Polymmial model to be multiplied into the real data for comparison to the reference flux. 
+
+    gpm : `numpy.ndarray`_
+        Good pixel mask indicating where the model is valid.
+        array with same shape as the star_model
+
+    """
+
+    wave_star = obj_dict['wave']
+    wave_min = obj_dict['wave_min']
+    wave_max = obj_dict['wave_max']
+    func = obj_dict['func']
+    model = obj_dict['model']
+    ymult = coadd.poly_model_eval(theta, func, model, wave_star, wave_min, wave_max)
+
+    return ymult, (ymult > 0.0)
+
 
 
 ##############
@@ -1213,22 +1380,16 @@ def init_poly_model(obj_params, iord, wave, flux, ivar, mask, tellmodel):
     ----------
     obj_params : dict
         Dictionary containing parameters necessary for initializing the quasar model
-
     iord : int
         Order in question. This is used here because each echelle order can have a different polynomial order
-
     wave : array shape (nspec,)
         Wavelength array for the object in question
-
     flux : array shape (nspec,)
         Flux array for the object in question
-
     ivar : array shape (nspec,)
         Inverse variance array for the oejct in question
-
     mask : array shape (nspec,)
         Good pixel mask for the object in question
-
     tellmodel : array shape (nspec,)
         This is a telluric model computed on the wave wavelength grid. Initialization usually requires some initial
         best guess for the telluric absorption, which is computed from the midpoint of the telluric model grid parameter
@@ -1499,6 +1660,165 @@ def sensfunc_telluric(wave, counts, counts_ivar, counts_mask, exptime, airmass, 
 
     return TelObj
 
+
+def fluxref_telluric(wave, flux, flux_ivar, flux_gpm, wave_ref, flux_ref, flux_ref_ivar, flux_ref_gpm, 
+                     airmass, telgridfile, func='legendre', model='exp', 
+                     ech_orders=None, polyorder=8,
+                     tell_npca=4, teltype='pca', resln_guess=None, resln_frac_bounds=(0.6, 1.4), 
+                     pix_shift_bounds=(-5.0, 5.0),
+                     delta_coeff_bounds=(-20.0, 20.0), minmax_coeff_bounds=(-5.0, 5.0),
+                     sn_clip=30.0, ballsize=5e-4, only_orders=None, maxiter=3, lower=3.0,
+                     upper=3.0, tol=1e-3, popsize=30, recombination=0.7, polish=True, disp=False,
+                     debug_init=False, debug=False):
+    r"""
+    Compute a polynomial rescaling function to be multiplied into an observed spectrum to match a 
+    reference spectrum, by simultaneously fitting the polynomial and a telluric
+    model for atmospheric absorption.
+
+    Parameters
+    ----------
+    wave : `numpy.ndarray`_, shape is (nspec,) or (nspec, norders)
+        Wavelength array.  If array is 2D, the data is likely from an echelle
+        spectrograph.
+    flux: `numpy.ndarray`_, shape must match ``wave``
+        flux for the object in question.
+    flux_ivar : `numpy.ndarray`_, shape must match ``wave``
+        Inverse variance for the object in question.
+    flux_gpm : `numpy.ndarray`_, shape must match ``wave``
+        Good pixel mask for the object in question. True=Good. 
+    wave_ref: `numpy.ndarray`_, shape is (nspec_ref,)
+        The wavelength array for the reference spectrum. 
+    flux_ref: `numpy.ndarray`_, shape is (nspec_ref,)
+        The flux array for the reference spectrum.
+    flux_ref_ivar: `numpy.ndarray`_, shape is (nspec_ref,)
+        The inverse variance array for the reference spectrum.
+    flux_ref_gpm: `numpy.ndarray`_, shape is (nspec_ref,)
+        The good pixel mask for the reference spectrum. True=Good. 
+    airmass : :obj:`float`
+        Airmass of the observation
+    telgridfile : :obj:`str`
+        File containing grid of HITRAN atmosphere models; see
+        :class:`~pypeit.par.pypeitpar.TelluricPar`.
+    func : :obj:`str`, optional, default = 'legendre'
+        The functional form of the polynomial which will be multiplied into the data to match the reference
+        spectr.
+    model : :obj:`str`, optional, default = 'exp'
+        Polynomial model type, valid model types are 'poly', 'square', or 'exp', corresponding to a 
+        normal polynomial, squared polynomial, or exponentiated polynomial        
+    ech_orders : `numpy.ndarray`_, shape is (norders,), optional
+        If passed, provides the true order numbers for the spectra provided.
+    polyorder : :obj:`int`, optional, default = 8
+        Polynomial order for the sensitivity function fit.
+    teltype : :obj:`str`, optional, default = 'pca'
+        Method for evaluating telluric models, either `pca` or `grid`.
+    tell_npca : :obj:`int`, optional, default = 4
+        Number of telluric PCA components used, must be <= 10
+    resln_guess : :obj:`float`, optional
+        A guess for the resolution of your spectrum expressed as
+        lambda/dlambda. The resolution is fit explicitly as part of the
+        telluric model fitting, but this guess helps determine the bounds
+        for the optimization (see ``resln_frac_bounds``). If not
+        provided, the wavelength sampling of your spectrum will be used
+        and the resolution calculated using a typical sampling of 3
+        spectral pixels per resolution element.
+    resln_frac_bounds : :obj:`tuple`, optional
+        A two-tuple with the bounds for the resolution fit optimization
+        which is part of the telluric model. This range is in units of
+        ``resln_guess``. For example, ``(0.5, 1.5)`` would bound the
+        spectral resolution fit to be within the range
+        ``(0.5*resln_guess, 1.5*resln_guess)``.
+    delta_coeff_bounds : :obj:`tuple`, optional, default = (-20.0, 20.0)
+        Parameters setting the polynomial coefficient bounds for sensfunc
+        optimization.
+    minmax_coeff_bounds : :obj:`tuple`, optional, default = (-5.0, 5.0)
+        Parameters setting the polynomial coefficient bounds for sensfunc
+        optimization. Bounds are currently determined as follows. We compute an
+        initial fit to the sensitivity function using
+        :func:`init_sensfunc_model`, which determines a set of coefficients. The
+        bounds are then determined according to::
+
+            [(np.fmin(np.abs(this_coeff)*obj_params['delta_coeff_bounds'][0],
+                    obj_params['minmax_coeff_bounds'][0]),
+            np.fmax(np.abs(this_coeff)*obj_params['delta_coeff_bounds'][1],
+                    obj_params['minmax_coeff_bounds'][1]))]
+
+    sn_clip : :obj:`float`, optional, default=30.0
+        Errors are capped during rejection so that the S/N is never greater than
+        ``sn_clip``. This prevents overly aggressive rejection in high S/N ratio
+        spectrum, which neverthless differ at a level greater than the implied
+        S/N due to systematics.  These systematics are most likely due to the
+        inadequecy of our telluric model to fit the data at the the precision
+        required at very high S/N ratio.
+    only_orders : :obj:`list` of int, optional, default = None
+        Only fit these specific orders
+    tol : :obj:`float`, optional, default = 1e-3
+        Relative tolerance for convergence of the differential evolution
+        optimization. See `scipy.optimize.differential_evolution`_ for details.
+    popsize : :obj:`int`, optional, default = 30
+        A multiplier for setting the total population size for the differential
+        evolution optimization. See `scipy.optimize.differential_evolution`_ for
+        details.
+    recombination : :obj:`float`, optional, default = 0.7
+        The recombination constant for the differential evolution optimization.
+        This should be in the range ``[0, 1]``.  See
+        `scipy.optimize.differential_evolution`_ for details.
+    polish : :obj:`bool`, optional, default=True
+        If True then differential evolution will perform an additional
+        optimization at the end to polish the best fit, which can improve the
+        optimization slightly. See `scipy.optimize.differential_evolution`_ for
+        details.
+    disp : :obj:`bool`, optional, default=True
+        Argument for `scipy.optimize.differential_evolution`_, which will
+        display status messages to the screen indicating the status of the
+        optimization. See above for a description of the output and how to know
+        if things are working well.
+    debug_init : :obj:`bool`, optional, default=False
+        Show plots to the screen useful for debugging model initialization
+    debug : :obj:`bool`, optional, default=False
+        Show plots to the screen useful for debugging the telluric/object model
+        fits.
+
+    Returns
+    -------
+    TelObj : :class:`Telluric`
+        Best-fitting telluric model
+    """
+    # Turn on disp for the differential_evolution if debug mode is turned on.
+    if debug:
+        disp = True
+
+    norders = flux.shape[1] if flux.ndim == 2 else 1
+
+    # Create the polyorder_vec
+    if np.size(polyorder) > 1:
+        if np.size(polyorder) != norders:
+            msgs.error('polyorder must have either have norder elements or be a scalar')
+        # TODO: Should this be np.asarray?
+        polyorder_vec = np.array(polyorder)
+    else:
+        polyorder_vec = np.full(norders, polyorder)
+
+    func ='legendre'
+    # Initalize the object parameters
+    obj_params = dict(wave_ref=wave_ref, flux_ref=flux_ref, ivar_ref=flux_ref_ivar, gpm_ref=flux_ref_gpm, 
+                      airmass=airmass, delta_coeff_bounds=delta_coeff_bounds,
+                      minmax_coeff_bounds=minmax_coeff_bounds, polyorder_vec=polyorder_vec,
+                      func=func, model=model, sigrej=3.0, 
+                      output_meta_keys=('airmass', 'polyorder_vec', 'func'),
+                      debug=debug_init)
+
+    # Since we are fitting a sensitivity function, first compute flux per second per angstrom.
+    TelObj = Telluric(wave, flux, flux_ivar, flux_gpm, telgridfile, obj_params,
+                      init_fluxref_model, eval_fluxref_model,
+                      teltype=teltype, tell_npca=tell_npca,
+                      ech_orders=ech_orders, pix_shift_bounds=pix_shift_bounds,
+                      resln_guess=resln_guess, resln_frac_bounds=resln_frac_bounds, sn_clip=sn_clip,
+                      maxiter=maxiter,  lower=lower, upper=upper, tol=tol, 
+                      popsize=popsize, recombination=recombination, polish=polish, disp=disp,
+                      debug=debug)
+    TelObj.run(only_orders=only_orders)
+
+    return TelObj
 
 def create_bal_mask(wave, bal_wv_min_max):
     """

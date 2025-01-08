@@ -66,6 +66,8 @@ class OrderStack(datamodel.DataContainer):
                               descr='One sigma noise array of coadded orders, equivalent to 1/sqrt(ivar) (matches units of flux)'),
                  'mask_stack': dict(otype=np.ndarray, atype=np.integer,
                               descr='Mask array of coadded orders (1=Good,0=Bad)'),
+                 'ech_orders': dict(otype=np.ndarray, atype=np.integer,
+                                descr='Array of the echelle orders that were coadded'),
                  'PYP_SPEC': dict(otype=str, descr='``PypeIt`` spectrograph designation'),
                  'ext_mode': dict(otype=str, descr='Extraction mode (options: BOX, OPT)'),
                  'fluxed': dict(otype=bool, descr='Boolean indicating if the spectrum is fluxed.'),
@@ -83,8 +85,8 @@ class OrderStack(datamodel.DataContainer):
     Defines the current datmodel.
     """
 
-    def __init__(self, wave_stack, flux_stack, ivar_stack=None, mask_stack=None, PYP_SPEC=None, sigma_stack=None, 
-                 ext_mode=None, fluxed=None, setup_name = None):
+    def __init__(self, wave_stack, flux_stack, ivar_stack=None, mask_stack=None, ech_orders=None, 
+                 PYP_SPEC=None, sigma_stack=None, ext_mode=None, fluxed=None, setup_name = None):
 
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
         _d = dict([(k,values[k]) for k in args[1:]])
