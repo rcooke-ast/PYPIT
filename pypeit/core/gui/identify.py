@@ -4,6 +4,7 @@
 from datetime import datetime
 import os
 import copy
+import re
 from pathlib import Path
 import numpy as np
 import matplotlib
@@ -714,6 +715,24 @@ class Identify:
                 wvcalib = copy.deepcopy(final_fit)
         return wvcalib
 
+    def make_order_vec(order_str):
+        """Parse the order string and return the order vector
+
+        Args:
+            order_str (str): The string containing the order information
+
+        Returns:
+            `numpy.ndarray`_: Vector of orders
+        """
+        mtch = re.search(r"(\d+):(\d+)", order_str)
+        if mtch is None:
+            msgs.warn(f"Input string {order_str} is not in the correct format, e.g. (45:122)")
+            return None
+        start_order = int(mtch.groups()[0])
+        end_order = int(mtch.groups()[1])
+        order_vec = np.arange(start_order, end_order+1)
+        return order_vec
+
     def store_solution(self, final_fit, binspec, rmstol=0.15,
                        force_save=False, wvcalib=None, multi=False,
                        fits_dicts=None, specdata_multi=None, slits=None,
@@ -738,8 +757,8 @@ class Identify:
         fits_dict : list, optional
             List of dictionaries containing the _fitdict of previous calls, if multi-trace data
         specdata_multi : array, optional
-            Numpy array containing the flux information from all the traces, if multiple traces are 
-            being fit. 
+            Numpy array containing the flux information from all the traces, if multiple traces are
+            being fit.
         wvcalib : :class:`pypeit.wavecalib.WaveCalib`, optional
             Wavelength solution
         lines_pix_arr : array, optional
@@ -788,21 +807,20 @@ class Identify:
                         try:
                             print('')
                             order_str = input("Which orders were we fitting? e.g. (32:39):  ")
-                            order_vec = np.arange(int(order_str[1:3]), int(order_str[4:6])+1)
+                            order_vec = make_order_vec(order_str)
+                            if order_vec is None:
+                                #better try again... Return to the start of the loop
+                                continue
                             if len(order_vec) != len(wvcalib.wv_fits):
                                 msgs.warn(f'The number of orders in this list, {order_vec} '+msgs.newline()+
                                 f'does not match the number of traces: {len(wvcalib.wv_fits)}' + msgs.newline() +
                                 'Please try again...')
                                 continue
-                        except ValueError:
-                            msgs.warn("Sorry, syntax may be invalid...")
-                            #better try again... Return to the start of the loop
-                            continue
                         else:
                             #orders were successfully parsed!
                             #we're ready to exit the loop.
                             break
-                else: 
+                else:
                     order_vec = None
                 make_arxiv = ''
                 if not force_save:
