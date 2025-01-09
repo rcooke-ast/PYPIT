@@ -802,6 +802,7 @@ class Identify:
             if ans == 'y':
                 # Arxiv solution
                 # prompt the user to give the orders that were used here
+                order_vec = None
                 if wvcalib is not None and '"echelle": true' in wvcalib.strpar:
                     while True:
                         print('')
@@ -815,12 +816,9 @@ class Identify:
                             f'does not match the number of traces: {len(wvcalib.wv_fits)}' + msgs.newline() +
                             'Please try again...')
                             continue
-                        else:
-                            #orders were successfully parsed!
-                            #we're ready to exit the loop.
-                            break
-                else:
-                    order_vec = None
+                        # we are done, break out of the loop
+                        break
+
                 make_arxiv = ''
                 if not force_save:
                     while make_arxiv != 'y' and make_arxiv != 'n':
