@@ -806,7 +806,7 @@ class Identify:
                 if wvcalib is not None and '"echelle": true' in wvcalib.strpar:
                     while True:
                         print('')
-                        order_str = input("Which orders were we fitting? e.g. (32:39):  ")    
+                        order_str = input("Which orders were we fitting? e.g. (32:39):  ")
                         order_vec = self.make_order_vec(order_str)
                         if order_vec is None:
                             #better try again... Return to the start of the loop
