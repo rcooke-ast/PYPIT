@@ -816,10 +816,10 @@ class Identify:
                                 f'does not match the number of traces: {len(wvcalib.wv_fits)}' + msgs.newline() +
                                 'Please try again...')
                                 continue
-                        else:
-                            #orders were successfully parsed!
-                            #we're ready to exit the loop.
-                            break
+                            else:
+                                #orders were successfully parsed!
+                                #we're ready to exit the loop.
+                                break
                 else:
                     order_vec = None
                 make_arxiv = ''
