@@ -714,8 +714,8 @@ class Identify:
             else:
                 wvcalib = copy.deepcopy(final_fit)
         return wvcalib
-    
-    def make_order_vec(order_str):
+
+    def make_order_vec(self, order_str):
         """Parse the order string and return the order vector
 
         Args:
@@ -804,23 +804,22 @@ class Identify:
                 # prompt the user to give the orders that were used here
                 if wvcalib is not None and '"echelle": true' in wvcalib.strpar:
                     while True:
-                        try:
-                            print('')
-                            order_str = input("Which orders were we fitting? e.g. (32:39):  ")    
-                            order_vec = make_order_vec(order_str)
-                            if order_vec is None:
-                                #better try again... Return to the start of the loop
-                                continue
-                            if len(order_vec) != len(wvcalib.wv_fits):
-                                msgs.warn(f'The number of orders in this list, {order_vec} '+msgs.newline()+
-                                f'does not match the number of traces: {len(wvcalib.wv_fits)}' + msgs.newline() +
-                                'Please try again...')
-                                continue
+                        print('')
+                        order_str = input("Which orders were we fitting? e.g. (32:39):  ")    
+                        order_vec = self.make_order_vec(order_str)
+                        if order_vec is None:
+                            #better try again... Return to the start of the loop
+                            continue
+                        if len(order_vec) != len(wvcalib.wv_fits):
+                            msgs.warn(f'The number of orders in this list, {order_vec} '+msgs.newline()+
+                            f'does not match the number of traces: {len(wvcalib.wv_fits)}' + msgs.newline() +
+                            'Please try again...')
+                            continue
                         else:
                             #orders were successfully parsed!
                             #we're ready to exit the loop.
                             break
-                else: 
+                else:
                     order_vec = None
                 make_arxiv = ''
                 if not force_save:
