@@ -210,16 +210,18 @@ the user has modified their ``pypeit`` file.  It is expected that
 the user has already attempted a full reduction with ``run_pypeit``.
 following the details in :ref:`run-pypeit`.
 
-The user provides: (1) the PypeIt file, (2) the raw science file whose 
-calibration file(s) you wish to re-run, and (3) the calibration step
-to re-run.  All steps up to and including the requested step will be
+The user provides: (1) the PypeIt file, (2) the calibration step
+to re-run to, and
+(3) either the raw science file whose 
+calibration file(s) you wish to re-run or the calib_group ID. 
+All steps up to and including the requested step will be
 run, although previous steps will be skipped if the calibration files
 are already present (these will be loaded, as appropriate).
 
 Users are strongly advised to use this script until you are happy
 with the calibration of this single step.  Once you are, you should
 re-run the full reduction with ``run_pypeit`` after first removing
-all previously generated calibration and science files.
+*all* previously generated calibration and science files.
 
 The script usage can be displayed by calling the script with the
 ``-h`` option:
@@ -230,7 +232,7 @@ An example call is:
 
 .. code-block:: console
 
-    pypeit_run_to_calibstep shane_kast_blue_A.pypeit b28.fits.gz wv_calib
+    pypeit_run_to_calibstep shane_kast_blue_A.pypeit wv_calib --science_frame b28.fits.gz 
 
 
 pypeit_trace_edges
