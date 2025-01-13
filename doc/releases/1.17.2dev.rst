@@ -22,6 +22,8 @@ Functionality/Performance Improvements and Additions
   and `spat_flexure_vrange`, were added to control the detection of the slit edges
   (used to compute the flexure) and the stretching of the image in the QA plot,
   respectively.
+- Setup GUI allows resizing panels when viewing pypeit files.
+- Setup GUI allows selecting which detector to view when viewing raw data.
 
 Instrument-specific Updates
 ---------------------------
@@ -30,7 +32,7 @@ Instrument-specific Updates
 Script Changes
 --------------
 
-
+- `pypeit_setup_gui` script has been removed. The Setup GUI can be started with `pypeit_setup -G`.
 
 Datamodel Changes
 -----------------
@@ -52,4 +54,4 @@ Bug Fixes
   to a quadratic term. This has been cross-checked with simple subpixel calculations.
 - Fixes bug associated with trying to remove or add slits for reductions that
   mosaic multiple detectors.
-
+- Fix Setup GUI sizing issues on MacOS.
