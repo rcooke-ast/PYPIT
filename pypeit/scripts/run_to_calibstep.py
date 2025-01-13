@@ -21,7 +21,7 @@ class RunToCalibStep(scriptbase.ScriptBase):
                                     width=width, formatter=scriptbase.SmartFormatter)
         parser.add_argument('pypeit_file', type=str,
                             help='PypeIt reduction file (must have .pypeit extension)')
-        parser.add_argument('step', type=str, help=f'Calibration step to perform.  Valid steps are: {', '.join(cls.valid_steps)}')
+        parser.add_argument('step', type=str, help=f"Calibration step to perform.  Valid steps are: {', '.join(cls.valid_steps)}")
 
         parser.add_argument('--science_frame', type=str, help='Raw science frame to reduce as listed in your PypeIt file, e.g. b28.fits.gz. Either this or the calib_group must be provided')
         parser.add_argument('--calib_group', type=str, help='Calibration group ID to reduce. Either this or the frame must be provided')
