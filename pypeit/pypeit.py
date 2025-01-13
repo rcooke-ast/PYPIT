@@ -295,26 +295,6 @@ class PypeIt:
 
                 self.calib_one(grp_frames, self.det)
 
-#                # Instantiate Calibrations class
-#                user_slits = slittrace.merge_user_slit(self.par['rdx']['slitspatnum'],
-#                                                       self.par['rdx']['maskIDs'])
-#                self.caliBrate = calibrations.Calibrations.get_instance(
-#                    self.fitstbl, self.par['calibrations'], self.spectrograph,
-#                    self.calibrations_path, qadir=self.qa_path, reuse_calibs=self.reuse_calibs,
-#                    show=self.show, user_slits=user_slits,
-#                    chk_version=self.par['rdx']['chk_version'])
-#
-#                # Do it
-#                # These need to be separate to accommodate COADD2D
-#                self.caliBrate.set_config(grp_frames[0], self.det, self.par['calibrations'])
-#
-#                self.caliBrate.run_the_steps()
-
-                if not self.caliBrate.success:
-                    msgs.warn(f'Calibrations for detector {self.det} were unsuccessful!  The step '
-                              f'that failed was {self.caliBrate.failed_step}.  Continuing to next '
-                              f'detector.')
-
         # Finish
         self.print_end_time()
 
