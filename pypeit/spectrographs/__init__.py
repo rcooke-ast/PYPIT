@@ -5,6 +5,7 @@ from pypeit.spectrographs import spectrograph
 # compiling of all the available spectrographs below
 from pypeit.spectrographs import aat_uhrf
 from pypeit.spectrographs import bok_bc
+from pypeit.spectrographs import d154_dfosc
 from pypeit.spectrographs import gemini_flamingos
 from pypeit.spectrographs import gemini_gmos
 from pypeit.spectrographs import gemini_gnirs
