@@ -20,9 +20,9 @@
 | HgI |  5771.2100 |    1 |     9 |      5510 | lrisr_600_7500_PYPIT.json |
 | HgI |  5792.2760 |    1 |     9 |      6029 | lrisr_600_7500_PYPIT.json |
 | HgI |  6718.1900 |    1 |   128 |       600 |                      NIST |
-| HgI |  6909.3700 |    1 |     0 |       100 | ldt_deveny_1200_HgCdAr.fits |
-| HeI |  7065.3700 |    1 |     9 |       300 | ldt_deveny_1200_HgCdAr.fits |
-| HgI |  7944.6000 |    1 |     9 |       300 | ldt_deveny_1200_HgCdAr.fits |
-| CsI |  8521.1000 |    1 |     9 |       321 | ldt_deveny_1200_HgCdAr.fits |
-| CsI |  8761.4000 |    1 |     9 |       321 | ldt_deveny_1200_HgCdAr.fits |
+| HgI |  6909.3700 |    1 |     0 |       100 | Calibration lamp line list |
+| HeI |  7065.3700 |    1 |     9 |       300 | Calibration lamp line list |
+| HgI |  7944.6000 |    1 |     9 |       300 | Calibration lamp line list |
+| CsI |  8521.1000 |    1 |     9 |       321 | Calibration lamp line list |
+| CsI |  8761.4000 |    1 |     9 |       321 | Calibration lamp line list |
 | HgI |  10142.53  |    1 |     9 |      1600 |                      NIST |
