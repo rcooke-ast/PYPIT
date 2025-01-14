@@ -293,7 +293,11 @@ class PypeIt:
             for self.det in detectors:
                 msgs.info(f'Working on detector {self.det}')
 
-                self.calib_one(grp_frames, self.det)
+                self.caliBrate = self.calib_one(grp_frames, self.det)
+                if not self.caliBrate.success:
+                    msgs.warn(f'Calibrations for detector {self.det} were unsuccessful!  The step '
+                              f'that failed was {self.caliBrate.failed_step}.  Continuing to next '
+                              f'detector.')
 
         # Finish
         self.print_end_time()

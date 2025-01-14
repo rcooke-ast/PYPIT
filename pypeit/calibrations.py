@@ -1307,9 +1307,9 @@ class Calibrations:
         """
         self.success = True
         for step in self.steps:
-            #self.run_one_step(step)
             if stop_at_step is not None and step == stop_at_step:
                 force = 'remake'
+                msgs.info(f"Calibrations will stop at {stop_at_step}") 
             else:
                 force = None
             getattr(self, f'get_{step}')(force=force)

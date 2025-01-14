@@ -61,11 +61,13 @@ class RunToCalibStep(scriptbase.ScriptBase):
         # Check for the frame or calib_group
         if args.science_frame is None and args.calib_group is None:
             msgs.error('Must provide either a science frame or a calibration group ID')
+        elif args.science_frame is not None and args.calib_group is not None:
+            msgs.warn("Both science_frame and calib_group ID provided.  Will use the science_frame")
 
         # Instantiate the main pipeline reduction object
         pypeIt = pypeit.PypeIt(args.pypeit_file, verbosity=args.verbosity,
                                redux_path=args.redux_path, 
-                               logname=logname, show=args.show)
+                               logname=logname, show=args.show, calib_only=True)
         pypeIt.reuse_calibs = True
 
         # Find the detectors to reduce
