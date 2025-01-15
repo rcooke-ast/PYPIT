@@ -39,6 +39,11 @@ def test_instantiate():
     assert mex.detname[0] == 'MSC01'
     mex = ManualExtractionObj.by_fitstbl_input('tst.fits', '(2,6):1181.8:3820.6:3.', spectrograph)
     assert mex.detname[0] == 'MSC02'
+    mex = ManualExtractionObj.by_fitstbl_input('tst.fits',
+                                               '(1,5):1181.8:3820.6:3.;(2,6):1181.8:3820.6:3.',
+                                               spectrograph)
+    assert mex.detname[0] == 'MSC01'
+    assert mex.detname[1] == 'MSC02'
 
 
 def test_dict_for_obj():

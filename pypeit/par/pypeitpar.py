@@ -1630,7 +1630,7 @@ class Coadd2DPar(ParSet):
 
         # Check if the user defined a manual extraction aperture in a mosaic
         if self['manual'] is not None:
-            self['manual'] = parse.fix_config_par_image_location(self['manual'])
+            self['manual'] = ';'.join(parse.fix_config_par_image_location(self['manual']))
 
 
 class CubePar(ParSet):
@@ -3800,17 +3800,15 @@ class EdgeTracePar(ParSet):
                              'slit to add is: \'det:spec:spat_left:spat_right\' where ' \
                              'det=detector, spec=spectral pixel, spat_left=spatial pixel of ' \
                              'left slit boundary, and spat_righ=spatial pixel of right slit ' \
-                             'boundary.  For example, \'2:2000:2121:2322,3:2000:1201:1500\' ' \
-                             'will add a slit to detector 2 passing through spec=2000 ' \
-                             'extending spatially from 2121 to 2322 and another on detector 3 ' \
-                             'at spec=2000 extending from 1201 to 1500.  For mosaics, use the ' \
-                             'tuple definition of the mosaic.  For example, '\
+                             'boundary.  **Multiple entries must be separated by a semi-colon.** '\
+                             'For example, \'2:2000:2121:2322; 3:2000:1201:1500\' will add a ' \
+                             'slit to detector 2 passing through spec=2000 extending spatially ' \
+                             'from 2121 to 2322 and another on detector 3 at spec=2000 ' \
+                             'extending from 1201 to 1500.  For mosaics, use the tuple ' \
+                             'definition of the mosaic.  For example, '\
                              '\'(1,2,3):1537:297.2:353.5\', adds a slit that passes through ' \
                              '(1537,297.2) on the left and (1537,353.5) on the right in the ' \
-                             'mosaic made up of detectors 1, 2, and 3.  NOTE: It is currently ' \
-                             'not possible to add slits using a mix of mosaic and detector ' \
-                             'syntax; i.e., setting ``add_slits = (1,2,3):1537:297.2:353.5, ' \
-                             '2:2000:2121:2322`` will cause an error.' 
+                             'mosaic made up of detectors 1, 2, and 3.'
                              
         defaults['add_predict'] = 'nearest'
         dtypes['add_predict'] = str
@@ -3825,16 +3823,14 @@ class EdgeTracePar(ParSet):
         dtypes['rm_slits'] = [str, list]
         descr['rm_slits'] = 'Remove one or more user-specified slits.  The syntax used to ' \
                             'define a slit to remove is: \'det:spec:spat\' where det=detector, ' \
-                            'spec=spectral pixel, spat=spatial pixel.  For example, ' \
-                            '\'2:2000:2121,3:2000:1500\' will remove the slit on detector 2 ' \
+                            'spec=spectral pixel, spat=spatial pixel.  **Multiple entries must ' \
+                            'be separated by a semi-colon.**  For example, ' \
+                            '\'2:2000:2121; 3:2000:1500\' will remove the slit on detector 2 ' \
                             'that contains pixel (spec,spat)=(2000,2121) and on detector 3 ' \
                             'that contains pixel (2000,1500).  For mosaics, use the tuple ' \
                             'definition of the mosaic.  For example \'(1,2,3):1500:331\', ' \
                             'removes the slit that contains pixel (1500,331) in the mosaic made ' \
-                            'up of detectors 1, 2, and 3.  NOTE: It is currently not possible to' \
-                            'remove slits using a mix of mosaic and detector syntax; i.e., ' \
-                            'setting ``rm_slits = (1,2,3):1500:331, 2:2000:2121`` will cause ' \
-                            'an error.'
+                            'up of detectors 1, 2, and 3.'
 
         # Instantiate the parameter set
         super(EdgeTracePar, self).__init__(list(pars.keys()), values=list(pars.values()),

@@ -340,6 +340,10 @@ def parse_image_location(inp, spec):
     """
     Parse a colon-separated string with a detector/mosaic identifier and a
     series of floats.
+    
+    This function should be used to parse a *single* image location.  Multiple
+    image locations are generally separated by semi-colons; the ``inp`` string
+    provided *must not* contain semi-colons.
 
     This is primarily used for two purposes: setting locations in a
     PypeIt-reduced image (e.g., adding or removing slits) or to define a manual
@@ -349,6 +353,7 @@ def parse_image_location(inp, spec):
     ----------
     inp : :obj:`str`
         Colon-separated string with a detector identifier and 2 to 3 numbers.
+        **Must not contain semi-colons.**
     spec : :class:`~pypeit.spectrographs.spectrograph.Spectrograph`
         Spectrograph class used to interpret the detector/mosaic identifier.
 
@@ -357,6 +362,13 @@ def parse_image_location(inp, spec):
     :obj:`tuple`
         Flag that detector integer as negative, the detector identifier returned
         as a string (e.g., DET01, MSC01), and the set of floats.
+
+    Raises
+    ------
+    PypeItError
+        Raised if the ``inp`` string contains a semi-colon, if a mosaic is
+        identified that is not valid for the provided spectrograph, or if there
+        is an issue constructing the detector/mosaic identifier.
 
     Examples
     --------
@@ -397,6 +409,8 @@ def parse_image_location(inp, spec):
         (False, 'DET02', 34.5, 400.1)
     
     """
+    if ';' in inp:
+        msgs.error(f'Image location string provided ({inp}) includes a semi-colon!')
     # Split the components of the string
     _inp = inp.split(':')
 
@@ -430,15 +444,15 @@ def fix_config_par_image_location(par):
 
     .. code-block:: ini
 
-        rm_slits = (1,2,3):1500:331, (1,2,3):1500:635
+        rm_slits = (1,2,3):1500:331; (1,2,3):1500:635
 
-    The `configobj`_ parser turns this into ``['(1', '2', '3):1500:331', '(1',
+    The `configobj`_ parser turns this into ``['(1', '2', '3):1500:331; (1',
     '2', '3):1500:635']``.  This function converts this back to the expected
     format: ``['(1,2,3):1500:331', '(1,2,3):1500:635']``.
 
     Parameters
     ----------
-    par : :obj:`list`
+    par : :obj:`str`, :obj:`list`
         List of strings parsed by `configobj`_.
 
     Returns
@@ -446,15 +460,22 @@ def fix_config_par_image_location(par):
     :obj:`list`
         The corrected image-location definitions.
     """
-    # Find the list indices that include the opening and closing parentheses
-    indx = np.where(['(' in p or ')' in p for p in par])[0]
-    if len(indx) == 0:
-        return par
-    if indx[0] != 0 or len(indx) % 2 != 0:
-        # There must always be an open parenthesis in the first list element,
-        # and there must be an even number of elements with either ( or ).
-        # NOTE: This means nested parentheses will not work, neither will mixing
-        # mosaic definitions with single-dector definitions!
-        msgs.error(f'Could not interpret provided parameters: {",".join(par)}.  Check for any '
-                    'unpaired parentheses.')
-    return [','.join(l) for l in np.split(par, (indx+1)[1:-1:2])]
+    # Ensure list type; avoid running ','.join(par) on a string!
+    _par = [par] if isinstance(par, str) else par
+    # Simply join all the entries with a comma (removed by the configobj parser)
+    # and instead split at the semi-colon and remove leading/trailing whitespace:
+    return list(map(str.strip, (','.join(_par)).split(';')))
+
+#    # Find the list indices that include the opening and closing parentheses
+#    indx = np.where(['(' in p or ')' in p for p in par])[0]
+#    if len(indx) == 0:
+#        return par
+#    if indx[0] != 0 or len(indx) % 2 != 0:
+#        # There must always be an open parenthesis in the first list element,
+#        # and there must be an even number of elements with either ( or ).
+#        # NOTE: This means nested parentheses will not work, neither will mixing
+#        # mosaic definitions with single-dector definitions!
+#        msgs.error(f'Could not interpret provided parameters: {",".join(par)}.  Check for any '
+#                    'unpaired parentheses.')
+#    return [','.join(l) for l in np.split(par, (indx+1)[1:-1:2])]
+

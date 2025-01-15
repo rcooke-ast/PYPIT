@@ -97,19 +97,25 @@ def test_parse_image_location():
 
 
 def test_join_image_location():
-    # Fix without parentheses (does nothing)
-    par = ['3:1500:331', '3:1500:635']
+    # Fix without parentheses
+    par = ['3:1500:331; 3:1500:635']
+    list_fixed_par = parse.fix_config_par_image_location(par)
+
+    par = '3:1500:331; 3:1500:635'
     fixed_par = parse.fix_config_par_image_location(par)
-    assert fixed_par == par, 'Should not change parameters if there are no parentheses'
+    assert fixed_par[0] == par.split(';')[0], 'Incorrect parsing of the 1st element'
+    assert fixed_par[1] == par.split(';')[1].strip(), 'Incorrect parsing of the 2nd element'
+    assert list_fixed_par == fixed_par, 'str and one-item list entry should yield identical result'
 
     # Fix with parentheses
-    par = ['(1', '2', '3):1500:331', '(1', '2', '3):1500:635']
+    par = ['(1', '2', '3):1500:331; (1', '2', '3):1500:635']
     fixed_par = parse.fix_config_par_image_location(par)
-    assert fixed_par[0] == ','.join(par[:3]), 'Fix is wrong'
-    assert fixed_par[1] == ','.join(par[3:]), 'Fix is wrong'
+    assert fixed_par[0] == (','.join(par[:3])).split(';')[0], '1st element fix is wrong'
+    assert fixed_par[1] == (','.join(par[2:])).split(';')[1].strip(), '2nd element fix is wrong'
 
-    # Throw fault for unpaired parentheses
-    par = ['1', '2', '3):1500:331', '(1', '2', '3):1500:635']
-    with pytest.raises(PypeItError):
-        fixed_par = parse.fix_config_par_image_location(par)
+    # Mix mosaics and single detectors
+    par = ['(1', '2', '3):1500:331; 3:1500:635']
+    fixed_par = parse.fix_config_par_image_location(par)
+    assert fixed_par[0] == (','.join(par[:3])).split(';')[0], '1st element fix is wrong'
+    assert fixed_par[1] == (','.join(par[2:])).split(';')[1].strip(), '2nd element fix is wrong'
 
