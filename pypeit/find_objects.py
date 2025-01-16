@@ -918,7 +918,7 @@ class EchelleFindObjects(FindObjects):
         inmask = self.sciImg.select_flag(invert=True)
         # Find objects
         # TODO: Not sure how this fairs if self.det is a tuple...
-        specobj_dict = {'SLITID': 999, 'DET': self.sciImg.detector.name, 
+        specobj_dict = {'SLITID': 999, 'DET': self.sciImg.detector.name,
                         'ECH_ORDERINDX': 999,
                         'OBJTYPE': self.objtype,
                         'PYPELINE': self.pypeline}
