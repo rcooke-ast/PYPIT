@@ -24,6 +24,7 @@ Functionality/Performance Improvements and Additions
   respectively.
 - Setup GUI allows resizing panels when viewing pypeit files.
 - Setup GUI allows selecting which detector to view when viewing raw data.
+- Added backwards compatibilty for old frames taken with the Bok B&C
 - The object trace can now be iterated over with the `find_numiterfit`
   parameter.
 
