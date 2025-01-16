@@ -344,8 +344,8 @@ def ech_findobj_ineach_order(
     return sobjs
 
 
-def ech_fof_sobjs(sobjs:specobjs.SpecObjs, 
-                  slit_left:np.ndarray, 
+def ech_fof_sobjs(sobjs:specobjs.SpecObjs,
+                  slit_left:np.ndarray,
                   slit_righ:np.ndarray,
                   order_vec:np.ndarray,
                   plate_scale_ord:np.ndarray,
@@ -1033,17 +1033,17 @@ def ech_pca_traces(
 def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order_vec,
                 spec_min_max, det='DET01', inmask=None,
                 fof_link=1.5, plate_scale=0.2,
-                std_trace=None, ncoeff=5, npca=None, 
+                std_trace=None, ncoeff=5, npca=None,
                 coeff_npoly=None, max_snr=2.0, min_snr=1.0,
-                nabove_min_snr=2, pca_explained_var=99.0, 
+                nabove_min_snr=2, pca_explained_var=99.0,
                 box_radius=2.0, fwhm=3.0,
-                use_user_fwhm=False, maxdev=2.0, 
+                use_user_fwhm=False, maxdev=2.0,
                 nperorder=2,
                 extract_maskwidth=3.0, snr_thresh=10.0,
                 specobj_dict=None, trim_edg=(5,5),
-                show_peaks=False, show_fits=False, 
+                show_peaks=False, show_fits=False,
                 show_single_fits=False,
-                show_trace=False, show_single_trace=False, 
+                show_trace=False, show_single_trace=False,
                 show_pca=False,
                 debug_all=False, objfindQA_filename=None,
                 manual_extract_dict=None):
@@ -1276,12 +1276,12 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
         order_vec,
         spec_min_max, plate_scale,
         det=det,
-        inmask=inmask, 
+        inmask=inmask,
         std_trace=std_trace,
         ncoeff=ncoeff,
         specobj_dict=specobj_dict,
         snr_thresh=snr_thresh,
-        show_peaks=show_peaks, 
+        show_peaks=show_peaks,
         show_single_fits=show_single_fits,
         show_single_trace=show_single_trace,
         extract_maskwidth=extract_maskwidth,
@@ -1296,7 +1296,7 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
 
 
     # No sources and no manual?
-    if len(sobjs_in_orders) == 0: 
+    if len(sobjs_in_orders) == 0:
         return sobjs_in_orders
 
     # Perform some additional work for slits with sources (found or input manually)
@@ -1312,7 +1312,7 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
     sobjs_pre_final = ech_cutobj_on_snr(
         sobjs_filled, image, ivar, slitmask,
         order_vec,
-        plate_scale, 
+        plate_scale,
         inmask=inmask,
         nperorder=nperorder,
         max_snr=max_snr,
@@ -1325,8 +1325,8 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
 
     # PCA
     sobjs_ech = ech_pca_traces(
-        sobjs_pre_final, 
-        image, slitmask, inmask, 
+        sobjs_pre_final,
+        image, slitmask, inmask,
         order_vec,
         spec_min_max,
         coeff_npoly=coeff_npoly,
@@ -1334,7 +1334,7 @@ def ech_objfind(image, ivar, slitmask, slit_left, slit_righ, slit_spat_id, order
         pca_explained_var=pca_explained_var,
         maxdev=maxdev,
         fwhm=fwhm,
-        show_trace=show_trace, show_fits=show_fits, 
+        show_trace=show_trace, show_fits=show_fits,
         show_pca=show_pca)
 
     return sobjs_ech
