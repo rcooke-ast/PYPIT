@@ -240,14 +240,12 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
 
         if binning:
             _,bin_spat = binning.split(",")
-            bin_spat = int(bin_spat)
+            bin_spat = float(bin_spat)
         else:
-            bin_spat = 1
-
-        plate_scale = np.zeros_like(order_vec, dtype=float)
-        plate_scale += (0.43346 + 0.43767 + 0.43551 + 0.42944 + 0.42552 + 0.43146)/6.0
-
-        return plate_scale*float(bin_spat)
+            bin_spat = 1.0
+        pscale = self.get_detector_par(1).platescale
+        pscale = pscale * bin_spat
+        return np.full(order_vec.size, pscale)
 
     def init_meta(self):
         """
