@@ -819,30 +819,35 @@ def get_sensfunc_factor(wave, wave_zp, zeropoint, exptime, tellmodel=None, delta
 #    print(f'get_sensfunc_factor: {np.amin(wave_zp):.1f}, {np.amax(wave_zp):.1f}, '
 #          f'{np.amin(wave[wave_mask]):.1f}, {np.amax(wave[wave_mask]):.1f}')
 
-    try:
-        zeropoint_obs[wave_mask] \
-                = interpolate.interp1d(wave_zp, zeropoint, bounds_error=True)(wave[wave_mask])
-    except ValueError:
-        if extrap_sens:
-            zeropoint_obs[wave_mask] \
-                    = interpolate.interp1d(wave_zp, zeropoint, bounds_error=False)(wave[wave_mask])
-            msgs.warn("Your data extends beyond the bounds of your sensfunc. You should be "
-                      "adjusting the par['sensfunc']['extrap_blu'] and/or "
-                      "par['sensfunc']['extrap_red'] to extrapolate further and recreate your "
-                      "sensfunc. But we are extrapolating per your direction. Good luck!")
-        else:
-            msgs.error("Your data extends beyond the bounds of your sensfunc. " + msgs.newline() +
-                       "Adjust the par['sensfunc']['extrap_blu'] and/or "
-                       "par['sensfunc']['extrap_red'] to extrapolate further and recreate "
-                       "your sensfunc.")
-    # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'k')
-    if blaze is not None:
+    # try:
+    #     zeropoint_obs[wave_mask] \
+    #             = interpolate.interp1d(wave_zp, zeropoint, bounds_error=True)(wave[wave_mask])
+    # except ValueError:
+    #     if extrap_sens:
+    #         zeropoint_obs[wave_mask] \
+    #                 = interpolate.interp1d(wave_zp, zeropoint, bounds_error=False)(wave[wave_mask])
+    #         msgs.warn("Your data extends beyond the bounds of your sensfunc. You should be "
+    #                   "adjusting the par['sensfunc']['extrap_blu'] and/or "
+    #                   "par['sensfunc']['extrap_red'] to extrapolate further and recreate your "
+    #                   "sensfunc. But we are extrapolating per your direction. Good luck!")
+    #     else:
+    #         msgs.error("Your data extends beyond the bounds of your sensfunc. " + msgs.newline() +
+    #                    "Adjust the par['sensfunc']['extrap_blu'] and/or "
+    #                    "par['sensfunc']['extrap_red'] to extrapolate further and recreate "
+    #                    "your sensfunc.")
+    if blaze is None:
+        zeropoint_obs[wave_mask] = eval_zeropoint(wave_zp, 'legendre', wave[wave_mask],
+                                                  np.amin(wave[wave_mask]), np.amax(wave[wave_mask]))
+    else:
         blaze_per_ang = blaze[wave_mask] - np.log10(_delta_wave[wave_mask])
         # Correct the sensitivity function for the blaze
         msgs.info("Adding the blaze to the sensitivity function")
-        zeropoint_obs[wave_mask] += 2.5 * blaze_per_ang
-    # plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'r')
-    # plt.show()
+        zeropoint_obs[wave_mask] = eval_zeropoint(wave_zp, 'legendre', wave[wave_mask],
+                                                  np.amin(wave[wave_mask]), np.amax(wave[wave_mask]),
+                                                  log10_blaze_func_per_ang=blaze_per_ang)
+
+    plt.plot(wave[wave>0], zeropoint_obs[wave>0], 'r')
+    plt.show()
     # This is the S_lam factor required to convert N_lam = counts/sec/Ang to
     # F_lam = 1e-17 erg/s/cm^2/Ang, i.e.  F_lam = S_lam*N_lam
     sensfunc_obs = Nlam_to_Flam(wave, zeropoint_obs)

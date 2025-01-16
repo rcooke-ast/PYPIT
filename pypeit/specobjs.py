@@ -666,7 +666,8 @@ class SpecObjs:
                 # JFH Is there a more elegant pythonic way to do this without looping over both orders and sci_obj?
                 indx = np.where(ech_orders == sci_obj.ECH_ORDER)[0]
                 if indx.size == 1:
-                    sci_obj.apply_flux_calib(sens.wave[:, indx[0]], sens.zeropoint[:, indx[0]],
+                    sci_obj.apply_flux_calib(sens.sens['SENS_COEFF'][indx[0]], sens.sens['SENS_COEFF'][indx[0]],
+                                            # sens.wave[:, indx[0]], sens.zeropoint[:, indx[0]],
                                              self.header['EXPTIME'],
                                              extinct_correct=_extinct_correct,
                                              extrap_sens=par['extrap_sens'],
