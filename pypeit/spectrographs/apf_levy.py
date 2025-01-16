@@ -161,7 +161,7 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
                 msgs.error(f"Unrecognized decker {decker_str}")
 
         if meta_key == 'binning':
-            binning = f"{headarr[0]['RBIN']},{headarr[0]['CBIN']}"
+            binning = f"{headarr[0]['RBIN']+1},{headarr[0]['CBIN']+1}"
             return binning
 
         msgs.error("Not ready for this compound meta")
