@@ -115,12 +115,12 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
         par['rdx']['ignore_bad_headers'] = True
         #par['baseprocess']['use_pixelflat'] = False
         #par['baseprocess']['use_illumflat'] = False
-        par['calibrations']['pixelflatframe']['process']['use_pixelflat'] = False
-        par['calibrations']['illumflatframe']['process']['use_illumflat'] = False 
-        par['calibrations']['slitedges']['sync_predict'] = 'nearest'
+        #par['calibrations']['pixelflatframe']['process']['use_pixelflat'] = False
+        #par['calibrations']['illumflatframe']['process']['use_illumflat'] = False 
+        par['calibrations']['slitedges']['sync_predict'] = 'auto'
         par['calibrations']['slitedges']['bound_detector'] = True
-        par['calibrations']['slitedges']['edge_thresh'] = 20.0
-        par['calibrations']['slitedges']['fit_min_spec_length'] = 0.4
+        par['calibrations']['slitedges']['edge_thresh'] = 10.0
+        #par['calibrations']['slitedges']['add_slits'] = '1:2000:900:1200'
 
         # Tilt parameters
         #par['calibrations']['tilts']['tracethresh'] = 3.0
@@ -142,10 +142,10 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
         # Flats
         #par['calibrations']['flatfield']['tweak_slits_thresh'] = 1.5
         #par['calibrations']['flatfield']['tweak_slits_maxfrac'] = 1.0
-        par['calibrations']['flatfield']['slit_illum_finecorr'] = False
-        par['calibrations']['flatfield']['tweak_slits'] = False
-        par['calibrations']['flatfield']['saturated_slits'] = 'continue'
-        par['calibrations']['flatfield']['method'] = 'skip'
+        #par['calibrations']['flatfield']['slit_illum_finecorr'] = False
+        #par['calibrations']['flatfield']['tweak_slits'] = False
+        #par['calibrations']['flatfield']['saturated_slits'] = 'continue'
+        #par['calibrations']['flatfield']['method'] = 'skip'
         
         # Extraction
         par['reduce']['skysub']['bspline_spacing'] = 0.8
@@ -312,23 +312,23 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
         par = super().config_specific_par(scifile, inp_par=inp_par)
 
         # Wavelength calibrations
-        if self.get_meta_value(scifile, 'dispname') == 'Grism_#3':
+        if self.get_meta_value(scifile, 'dispname') == 'Grism_3':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism3.fits'
         #elif self.get_meta_value(scifile, 'dispname') == 'Grism_#4':
         #    par['calibrations']['wavelengths']['reid_arxiv'] = 'not_alfosc_grism4.fits'
         #    par['calibrations']['wavelengths']['lamps'] = ['HgI']
-        elif self.get_meta_value(scifile, 'dispname') == 'Grism_#5':
+        elif self.get_meta_value(scifile, 'dispname') == 'Grism_5':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism5.fits'
-        elif self.get_meta_value(scifile, 'dispname') == 'Grism_#6':
+        elif self.get_meta_value(scifile, 'dispname') == 'Grism_6':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism6.fits'
-        elif self.get_meta_value(scifile, 'dispname') == 'Grism_#7':
+        elif self.get_meta_value(scifile, 'dispname') == 'Grism_7':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism7.fits'
-        elif self.get_meta_value(scifile, 'dispname') == 'Grism_#8':
+        elif self.get_meta_value(scifile, 'dispname') == 'Grism_8':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism8.fits'
-        elif self.get_meta_value(scifile, 'dispname') == 'Grism_#14':
+        elif self.get_meta_value(scifile, 'dispname') == 'Grism_14':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism14.fits'
         elif self.get_meta_value(scifile, 'dispname') == 'Grism_#15':
-            par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism15.fits'
+            par['calibrations']['wavelengths']['reid_arxiv'] = 'wvarxiv_d154_dfosc_vert_20250116T0645.fits'
         else:
             msgs.warn('d154_dfosc.py: YOU NEED TO ADD IN THE WAVELENGTH SOLUTION FOR THIS GRISM')
 
@@ -389,7 +389,7 @@ class DFOSCSpectrographVert(DFOSCSpectrograph):
             det             = 1,
             dataext         = 0,  #changed from 1 to 0 b/c of header extension
             specaxis        = 1, #Vertical slits have horizontal spectral dispersion
-            specflip        = False,
+            specflip        = True,
             spatflip        = False,
             xgap            = 0.,
             ygap            = 0.,
