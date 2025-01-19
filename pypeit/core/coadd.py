@@ -3248,22 +3248,22 @@ def rebin2d(spec_bins, spat_bins, waveimg_stack, spatimg_stack,
 
     spat_bins : `numpy.ndarray`_, float ndarray, shape = (nspat_rebin)
         Spatial bins to rebin to.
-    waveimg_stack : `numpy.ndarray`_, float , shape = (nimgs, nspec, nspat)
-        Stack of nimgs wavelength images with shape = (nspec, nspat) each
-    spatimg_stack : `numpy.ndarray`_, float, shape = (nimgs, nspec, nspat)
-        Stack of nimgs spatial position images with shape = (nspec, nspat) each
-    thismask_stack : `numpy.ndarray`_, bool, shape = (nimgs, nspec, nspat)
-        Stack of nimgs images with shape = (nspec, nspat) indicating the
+    waveimg_stack : list 
+        List of length nimgs of wavelength maps which are `numpy.ndarray`_, float , shape = (nspec, nspat) 
+    spatimg_stack : list
+        List of length nimgs of spatial position images with shape = (nspec, nspat) each
+    thismask_stack : list 
+        List of length nimgs of thismask images with shape = (nspec, nspat) indicating the
         locatons on the pixels on an image that are on the slit in question.
-    inmask_stack : `numpy.ndarray`_, bool ndarray, shape = (nimgs, nspec, nspat)
-        Stack of nimgs images with shape = (nspec, nspat) indicating which
+    inmask_stack : list 
+        List of length nimgs of images with shape = (nspec, nspat) indicating which
         pixels on an image are masked.  True = Good, False = Bad
     sci_list : list
         Nested list of images, i.e. list of lists of images, where
         sci_list[i][j] is a shape = (nspec, nspat) where the shape can be
         different for each image. The ith index is the image type, i.e. sciimg,
         skysub, tilts, waveimg, the jth index is the exposure or image number,
-        i.e. nimgs. These images are to be rebinned onto the commong grid.
+        i.e. nimgs. These images are to be rebinned onto the common grid.
     var_list : list
         Nested list of variance images, i.e. list of lists of images. The format
         is the same as for sci_list, but note that sci_list and var_list can
@@ -3319,7 +3319,6 @@ def rebin2d(spec_bins, spat_bins, waveimg_stack, spatimg_stack,
         # could have been sampled
         nsmp_rebin_stack[img, :, :], spec_edges, spat_edges = np.histogram2d(spec_rebin_this, spat_rebin_this,
                                                                bins=[spec_bins, spat_bins], density=False)
-
         finmask = thismask & inmask
         spec_rebin = waveimg[finmask]
         spat_rebin = spatimg[finmask]
