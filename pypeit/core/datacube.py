@@ -75,7 +75,7 @@ def gaussian2D(tup, intflux, xo, yo, sigma_x, sigma_y, theta, offset):
 
 
 def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None, 
-                  fwhm=3.0, nsigma=5.0, mask_edge=4, median_filter=False, norm=False, verbose=False):
+                  fwhm=3.0, nsigma=5.0, mask_edge=2, median_filter=False, norm=False, verbose=False):
     """
     Fit a 2D Gaussian to an input image. It is recommended that the input image
     is scaled to a maximum value that is ~1, so that all fit parameters are of
@@ -105,7 +105,7 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
         The number of sigma to use when determining the threshold for the
         DAOStarFinder object, i.e. the threshold is nsigma*std_dev.  Default is 5.0.
     mask_edge : int, optional
-        The number of pixels to mask at the edges of the image. Default is 5 pixels.
+        The number of pixels to mask at the edges of the image. Default is 4 pixels.
     median_filter : bool, optional
         If True, the object finding will be performed on a median filtered
         image with a kernel size of fwhm, instead of the image itself. Default is False.
@@ -232,10 +232,13 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
     msgs.info(f"Optimal extraction of the brightest object gives{msgs.newline()}"
             f"     -----------------------------{msgs.newline()}"
             f"     | (x, y)  = {xobj:6.2f}, {yobj:6.2f}  |{msgs.newline()}"
-            f"     |   Flux  = {flux_opt:7.3f}          |{msgs.newline()}"
-            f"     |   Sigma = {sigma_opt:7.3f}          |{msgs.newline()}"
+            f"     |   Flux  = {flux_opt:7.3f}         |{msgs.newline()}"
+            f"     |   Sigma = {sigma_opt:7.3f}         |{msgs.newline()}"
             f"     |   S/N   = {flux_opt/sigma_opt:6.2f}          |{msgs.newline()}"
             f"     -----------------------------{msgs.newline()}")
+ 
+
+    
     #if np.isclose(np.sum(image),-13.229953612054073):
     #    embed()
 
@@ -410,6 +413,7 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     if whitelight_range is None:
         whitelight_range = [np.min(wave), np.max(wave)]
 
+    fwhm2sigma = 1.0 / (2 * np.sqrt(2 * np.log(2)))
     # Load the spectrograph
     _spectrograph = load_spectrograph(spectrograph) if isinstance(spectrograph, str) else spectrograph
 
@@ -451,7 +455,15 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(
         wl_img, ivar=wl_ivar, gpm=wl_gpm, init_obj_position=manual_position, 
         fwhm = fwhm/platescale, nsigma=snr_thresh, norm=False)
-    gaussian_position = popt[1], popt[2]
+    _, xpos_gauss, ypos_gauss, sigma_x_gauss, sigma_y_gauss, theta_gauss, _ = popt
+    gaussian_position = xpos_gauss, ypos_gauss
+    msgs.info("Gaussian fit gives:")
+    msgs.info("--------------------------------")
+    msgs.info(f"FWHM_x: {sigma_x_gauss*platescale/fwhm2sigma:.2f} arcsec")
+    msgs.info(f"FWHM_y: {sigma_y_gauss*platescale/fwhm2sigma:.2f} arcsec")
+    msgs.info(f"Theta: {np.degrees(theta_gauss):.2f} degrees")
+    msgs.info("--------------------------------")     
+    
     # Object location for extraction 
     if manual_position is not None:
         xobj, yobj = manual_position  
@@ -542,7 +554,6 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
     # column of the 2D array, and so on. This is done so that the optimal extraction algorithm
     # can be applied.
 
-    fwhm2sigma = 1.0 / (2 * np.sqrt(2 * np.log(2)))
 
     # Setup the coordinates
     x = np.linspace(0, wl_img.shape[0] - 1, wl_img.shape[0])
@@ -569,14 +580,11 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
         popt_no_offset[-1] = 0.0
         gauss_profile = np.clip(gaussian2D((xx, yy), *popt_no_offset).reshape(wl_img.shape), 0.0, None)
         optkern = gauss_profile/np.sum(gauss_profile)
-        # Print to the screen 
-        _, _, _, sigma_x, sigma_y, theta, _ = popt_no_offset
         # Print out the properties of the Gaussian
         msgs.info("Optimal extraction with fit_gauss method:")
         msgs.info("--------------------------------")
-        msgs.info(f"FWHM_x: {sigma_x*platescale/fwhm2sigma:.2f} arcsec")
-        msgs.info(f"FWHM_y: {sigma_y*platescale/fwhm2sigma:.2f} arcsec")
-        msgs.info(f"Theta: {np.degrees(theta):.2f} degrees")
+        msgs.info(f"FWHM_x: {sigma_x_gauss*platescale/fwhm2sigma:.2f} arcsec")
+        msgs.info(f"FWHM_y: {sigma_y_gauss*platescale/fwhm2sigma:.2f} arcsec")
         msgs.info("--------------------------------")        
     elif opt_prof_method == 'whitelight':
         msgs.info("Optimal extraction with fit_gauss method: using whitelight image as a non-parametric spatial profile")
@@ -2295,7 +2303,7 @@ def subpixellate(output_wcs, bins, sciImg, ivarImg, waveImg, slitid_img_gpm, wgh
                 this_ra_int += ra_corr + _ra_offset[fr]
                 #this_dec_int += dec_corr + _dec_offset[fr]
                 # TODO: Below was a hack to fix bug for KCRM. I suspected the WCS was being set incorrectly, 
-                # which was true, and this hack fixed it. Old code is th eline above. 
+                # which was true, and this hack fixed it. Old code is the line above. 
                 this_dec_int += dec_corr - _dec_offset[fr]
                 # Convert world coordinates to voxel coordinates, then histogram
                 sslo = ss * num_subpixels
