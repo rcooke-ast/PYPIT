@@ -1,5 +1,5 @@
 
-Version 1.17.1dev
+Version 1.17.2dev
 =================
 
 Installation Changes
@@ -24,6 +24,8 @@ Functionality/Performance Improvements and Additions
   respectively.
 - Setup GUI allows resizing panels when viewing pypeit files.
 - Setup GUI allows selecting which detector to view when viewing raw data.
+- Added backwards compatibilty for old frames taken with the Bok B&C
+
 
 Instrument-specific Updates
 ---------------------------
@@ -33,6 +35,11 @@ Script Changes
 --------------
 
 - `pypeit_setup_gui` script has been removed. The Setup GUI can be started with `pypeit_setup -G`.
+
+- Added ``pypeit_run_to_calibstep`` to run PypeIt to an input calibration
+  step. This script is useful to re-generate calibration files for a given
+  configuration without running the full reduction.
+
 
 Datamodel Changes
 -----------------
