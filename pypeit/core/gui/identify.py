@@ -730,6 +730,9 @@ class Identify:
             return None
         start_order = int(mtch.groups()[0])
         end_order = int(mtch.groups()[1])
+        if start_order > end_order:
+            msgs.warn(f"The start order {start_order} must be less than the end order {end_order}")
+            return None
         order_vec = np.arange(start_order, end_order+1)
         return order_vec
 
