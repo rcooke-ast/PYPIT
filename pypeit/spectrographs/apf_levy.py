@@ -68,6 +68,8 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
         par['calibrations']['wavelengths']['ech_norder_coeff'] = 4
         par['calibrations']['wavelengths']['ech_sigrej'] = 3.0
 
+        par['reduce']['skysub']['global_sky_std'] = False
+
 
         # Processing steps
         turn_off = dict(use_biasimage=False,
