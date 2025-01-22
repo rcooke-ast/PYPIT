@@ -68,8 +68,6 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
         par['calibrations']['wavelengths']['ech_norder_coeff'] = 4
         par['calibrations']['wavelengths']['ech_sigrej'] = 3.0
 
-        par['reduce']['skysub']['global_sky_std'] = False
-
 
         # Processing steps
         turn_off = dict(use_biasimage=False,
@@ -78,6 +76,12 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
         # Do not correct for flexure
         par['flexure']['spec_method'] = 'skip'
 
+        # no sky subtraction on standard stars
+        par['reduce']['skysub']['global_sky_std'] = False
+        # skip sky subtraction when searching for objects
+        # this is because the sky subtraction is not very good with narrow
+        # slits and the usual APF target is bright
+        par['reduce']['findobj']['skip_skysub'] = True
         return par
 
 
