@@ -65,7 +65,12 @@ class NOTALFOSCSpectrograph(spectrograph.Spectrograph):
             binning = self.get_meta_value(self.get_headarr(hdu), 'binning')
             gain = np.atleast_1d(hdu[1].header['GAIN'])  # e-/ADU
             ronoise = np.atleast_1d(hdu[1].header['RDNOISE'])  # e-
-
+        
+        # BIAS frames have a different size compared to the rest of the frames
+        if hdu[0].header['IMAGETYP'] == 'BIAS':
+            datasec = np.atleast_1d('[:,{}:{}]'.format(1, 500))
+        else:
+            datasec = np.atleast_1d('[:,{}:{}]'.format(1, 2148))
         # Detector 1
         detector_dict = dict(
             binning         = binning,
@@ -82,19 +87,13 @@ class NOTALFOSCSpectrograph(spectrograph.Spectrograph):
             darkcurr        = 1.3,      # e-/pix/hr
             saturation      = 700000.,  # ADU
             nonlinear       = 0.86,
-            datasec         = np.atleast_1d('[:,{}:{}]'.format(1, 2148)),  # Unbinned
-            oscansec        = None,
+            datasec         = datasec,  # Unbinned
+            #oscansec        = np.atleast_1d('[:,{}:{}]'.format(1, 1648)),  # Unbinned
             numamplifiers   = 1,
             gain            = gain,     # e-/ADU
             ronoise         = ronoise   # e-
         )
 
-#        # Parse datasec, oscancsec from the header
-#        head1 = hdu[1].header
-#        detector_dict['gain'] = np.atleast_1d(head1['GAIN'])  # e-/ADU
-#        detector_dict['ronoise'] = np.atleast_1d(head1['RDNOISE'])  # e-
-
-        # Return
         return detector_container.DetectorContainer(**detector_dict)
 
     @classmethod
@@ -141,6 +140,8 @@ class NOTALFOSCSpectrograph(spectrograph.Spectrograph):
 
         # No overscan region!
         turn_off = dict(use_overscan=False)
+        #par['calibrations']['biasframe']['process']['use_overscan'] = True
+
         par.reset_all_processimages_par(**turn_off)
 
         return par
