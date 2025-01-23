@@ -80,15 +80,15 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
             xgap            = 0.,
             ygap            = 0.,
             ysize           = 1.,
-            platescale      = 0.29,
+            platescale      = 0.2138,
             mincounts       = -1e10,
             darkcurr        = 1.3,      # e-/pix/hr
             saturation      = 700000.,  # ADU
             nonlinear       = 0.86,
             datasec         = np.atleast_1d('[:,{}:{}]'.format(1, 2148)),  # Unbinned
-            oscansec        = None,
+            oscansec        = '[1:50,1:50]',
             numamplifiers   = 1,
-            gain            = np.atleast_1d(0.164),     # e-/ADU   This is not the correct value, test, and update with flats
+            gain            = np.atleast_1d(0.16),     # e-/ADU   This is not the correct value, test, and update with flats
             ronoise         = np.atleast_1d(9.1)   # e-
         )
 
@@ -111,51 +111,37 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
         """
         par = super().default_pypeit_par()
 
+        par['reduce']['findobj']['snr_thresh'] = 40.0  # Some CCD features will be picked out as objects if SNR is too low
+
         # Ignore PCA
-        par['rdx']['ignore_bad_headers'] = True
-        #par['baseprocess']['use_pixelflat'] = False
-        #par['baseprocess']['use_illumflat'] = False
-        #par['calibrations']['pixelflatframe']['process']['use_pixelflat'] = False
-        #par['calibrations']['illumflatframe']['process']['use_illumflat'] = False 
-        par['calibrations']['slitedges']['sync_predict'] = 'auto'
+        par['calibrations']['slitedges']['sync_predict'] = 'nearest'
         par['calibrations']['slitedges']['bound_detector'] = True
-        par['calibrations']['slitedges']['edge_thresh'] = 10.0
-        #par['calibrations']['slitedges']['add_slits'] = '1:2000:900:1200'
+        # Flats are sometimes quite ugly due to dust on the slit which leads to the erroneous detection of multiple slits. So set a higher edge_thresh and minimum_slit_gap.
+        par['calibrations']['slitedges']['edge_thresh'] = 30
+        par['calibrations']['slitedges']['minimum_slit_gap'] = 15
 
-        # Tilt parameters
-        #par['calibrations']['tilts']['tracethresh'] = 3.0
-        #par['calibrations']['tilts']['spat_order'] = 2
-        #par['calibrations']['tilts']['spec_order'] = 3
-        
-        # Image processing
-        #par['scienceframe']['process']['use_overscan'] = False 
-
-        # 1D wavelength solution
+        # Set pixel flat combination method
+        par['calibrations']['pixelflatframe']['process']['combine'] = 'median'
+        # Wavelength calibration methods
+        #par['calibrations']['wavelengths']['method'] = 'holy-grail'
         par['calibrations']['wavelengths']['method'] = 'full_template'
-        par['calibrations']['wavelengths']['lamps'] = ['HgI_DFOSC']
-        #par['calibrations']['wavelengths']['rms_thresh_frac_fwhm'] = 1.0
-        #par['calibrations']['wavelengths']['sigdetect'] = 1.0
-        par['calibrations']['wavelengths']['fwhm'] = 12.0
-        par['calibrations']['wavelengths']['n_final'] = 5
-        #par['calibrations']['wavelengths']['cc_thresh'] = ['0.5']
+        par['calibrations']['wavelengths']['lamps'] = ['DFOSC_Hg']
+        par['calibrations']['wavelengths']['sigdetect'] = 10.0
+        # Set the default exposure time ranges for the frame typing
+        par['calibrations']['biasframe']['exprng'] = [None, 1]
+        par['calibrations']['darkframe']['exprng'] = [999999, None]     # No dark frames
+        par['calibrations']['pinholeframe']['exprng'] = [999999, None]  # No pinhole frames
+        par['calibrations']['arcframe']['exprng'] = [None, None]  # Long arc exposures on this telescope
+        par['calibrations']['standardframe']['exprng'] = [None, 300]
+        par['scienceframe']['exprng'] = [10, None]
 
-        # Flats
-        #par['calibrations']['flatfield']['tweak_slits_thresh'] = 1.5
-        #par['calibrations']['flatfield']['tweak_slits_maxfrac'] = 1.0
-        #par['calibrations']['flatfield']['slit_illum_finecorr'] = False
-        #par['calibrations']['flatfield']['tweak_slits'] = False
-        #par['calibrations']['flatfield']['saturated_slits'] = 'continue'
-        #par['calibrations']['flatfield']['method'] = 'skip'
-        
-        # Extraction
-        par['reduce']['skysub']['bspline_spacing'] = 0.8
-        par['reduce']['skysub']['no_poly'] = True
-        par['reduce']['skysub']['bspline_spacing'] = 0.6
-        par['reduce']['skysub']['joint_fit'] = False
-        par['reduce']['skysub']['global_sky_std']  = False
-
-        par['reduce']['extraction']['sn_gauss'] = 4.0
-        par['reduce']['skysub']['sky_sigrej'] = 5.0
+        # Multiple arcs with different lamps, so can't median combine nor clip, also need to remove continuum
+        par['calibrations']['arcframe']['process']['clip'] = False
+        par['calibrations']['arcframe']['process']['combine'] = 'mean'
+        par['calibrations']['arcframe']['process']['subtract_continuum'] = True
+        par['calibrations']['tiltframe']['process']['clip'] = False
+        par['calibrations']['tiltframe']['process']['combine'] = 'mean'
+        par['calibrations']['tiltframe']['process']['subtract_continuum'] = True
 
         # No overscan region!
         turn_off = dict(use_overscan=False)
@@ -328,7 +314,7 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
         elif self.get_meta_value(scifile, 'dispname') == 'Grism_14':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism14.fits'
         elif self.get_meta_value(scifile, 'dispname') == 'Grism_#15':
-            par['calibrations']['wavelengths']['reid_arxiv'] = 'wvarxiv_d154_dfosc_vert_20250116T0645.fits'
+            par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism15.fits'
         else:
             msgs.warn('d154_dfosc.py: YOU NEED TO ADD IN THE WAVELENGTH SOLUTION FOR THIS GRISM')
 
@@ -380,7 +366,7 @@ class DFOSCSpectrographVert(DFOSCSpectrograph):
             binning = self.get_meta_value(self.get_headarr(hdu), 'binning')
             #gain = np.atleast_1d(hdu[1].header['GAIN'])  # e-/ADU
             #ronoise = np.atleast_1d(hdu[1].header['RDNOISE'])  # e-
-            gain = np.atleast_1d(0.164)  # e-/ADU
+            gain = np.atleast_1d(0.16)  # e-/ADU
             ronoise = np.atleast_1d(9.1)
 
         # Detector 1
@@ -394,16 +380,16 @@ class DFOSCSpectrographVert(DFOSCSpectrograph):
             xgap            = 0.,
             ygap            = 0.,
             ysize           = 1.,
-            platescale      = 0.29,
+            platescale      = 0.2138,
             mincounts       = -1e10,
             darkcurr        = 1.3,      # e-/pix/hr
             saturation      = 700000.,  # ADU
             nonlinear       = 0.86,
             datasec         = np.atleast_1d('[{}:{},:]'.format(1, 2064)),  # Unbinned
-            oscansec        = None,
+            oscansec        = np.atleast_1d('[1:50,1:50]'),
             numamplifiers   = 1,
-            gain            = gain,     # e-/ADU
-            ronoise         = ronoise   # e-
+            gain            = np.atleast_1d(0.16),     # e-/ADU
+            ronoise         = np.atleast_1d(9.1)   # e-
         )
 
         # Return
