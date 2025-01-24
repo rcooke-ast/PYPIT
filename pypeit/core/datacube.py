@@ -75,7 +75,8 @@ def gaussian2D(tup, intflux, xo, yo, sigma_x, sigma_y, theta, offset):
 
 
 def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None, 
-                  fwhm=3.0, nsigma=5.0, mask_edge=2, median_filter=False, norm=False, verbose=False):
+                  fwhm=3.0, nsigma=5.0, mask_edge=0, median_filter=False, 
+                  norm=False, platescale=None, verbose=False):
     """
     Fit a 2D Gaussian to an input image. It is recommended that the input image
     is scaled to a maximum value that is ~1, so that all fit parameters are of
@@ -112,11 +113,10 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
     norm : bool, optional
         If True, the input image will be normalised to the maximum value
         of the input image.
-    show_qa : bool, optional
-        If True a QA plot will be displayed in ginga. Default is False. 
-    channel_prefix : str, optional
-        The prefix to use for the channel names in the QA plot. Useful when the routine
-        is called multiple times in a loop. Default is ''.
+    platescale : float, optional
+        The plate scale of the image in arcseconds per pixel. This is only used to print the
+        FWHM of the Gaussian to the screen in arcseconds.  Default is None, in which 
+        case the FWHM will be printed in pixels.
     verbose : bool, optional
         If True, the DAOStarfinder properties of the brightest source will be printed to the screen. 
 
@@ -131,9 +131,9 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
         Corresponding covariance matrix
     model : `numpy.ndarray`_
         The 2D Gaussian model evaluated at the input image pixel locations
-    init_obj_position : tuple
-        The initial guess for the object position in the image determined by running
-        DAOStarFinder on the image. 
+    _init_obj_position : tuple
+        If the init_obj_position input parameter is None, this will be the initial guess for the object position in 
+        the image determined by running DAOStarFinder on the image, otherwise it will be the input value.
     flux_opt : float
         The optimally extracted object flux of the brightest source in the image
     sigma_opt : float
@@ -151,9 +151,10 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
         _ivar = ivar
 
     ## Find the objects
-    edgemask = np.zeros_like(image, dtype=bool)
-    edgemask[:mask_edge, :] = edgemask[-mask_edge:, :] = \
-    edgemask[:, :mask_edge] = edgemask[:, -mask_edge:] = True
+    ximg = np.tile(np.arange(image.shape[1]), (image.shape[0], 1))
+    yimg = np.tile(np.arange(image.shape[0]), (image.shape[1], 1)).T
+    edgemask = (ximg < mask_edge) | (ximg >= image.shape[1] - mask_edge) | \
+                (yimg < mask_edge) | (yimg >= image.shape[0] - mask_edge)
     totmask = edgemask | np.logical_not(_gpm)
 
     if init_obj_position is None: 
@@ -174,7 +175,8 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
         # Create a border mask to exclude junk at the edges
         daofind = DAOStarFinder(
             fwhm=fwhm, threshold=nsigma, sharphi=2.0, 
-            exclude_border=True, brightest=1)
+            exclude_border=False, brightest=1)
+        # switched exclude_border to False since we use the edgemask now
         sources = daofind((objfind_image - median_objfind)*np.sqrt(ivar_objfind), mask=totmask)
         if verbose: 
             msgs.info('DAOStarFinder brightest source properties')
@@ -190,11 +192,13 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
                     f"nsigma = {nsigma:.1f}{msgs.newline()}"
                         "or adjust the DAOStarFinder parameters.")
 
-        init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
+        _init_obj_position = sources['ycentroid'][0], sources['xcentroid'][0]
+    else:
+        _init_obj_position = init_obj_position
         
-    initial_guess = (1, init_obj_position[0], init_obj_position[1], fwhm*fwhm2sigma, fwhm*fwhm2sigma, 0, 0)
-    bounds = ([0,      init_obj_position[0]-fwhm/3.0, init_obj_position[1]-fwhm/3.0, fwhm/6.0, fwhm/6.0, -np.pi, -np.inf],
-              [np.inf, init_obj_position[0]+fwhm/3.0, init_obj_position[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
+    initial_guess = (1, _init_obj_position[0], _init_obj_position[1], fwhm*fwhm2sigma, fwhm*fwhm2sigma, 0, 0)
+    bounds = ([0,      _init_obj_position[0]-fwhm/3.0, _init_obj_position[1]-fwhm/3.0, fwhm/6.0, fwhm/6.0, -np.pi, -np.inf],
+              [np.inf, _init_obj_position[0]+fwhm/3.0, _init_obj_position[1]+fwhm/3.0, fwhm    , fwhm    , np.pi , np.inf])
     # Perform the fit
     # TODO :: May want to generate the image on a finer pixel scale first
     # TODO JFH: The 2D Gaussian fitting should be using the noise and the gpm. This should be
@@ -205,8 +209,20 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
     xx, yy = np.meshgrid(x, y, indexing='ij')
     popt, pcov = opt.curve_fit(gaussian2D, (xx, yy), image.ravel() / wlscl,
                                bounds=bounds, p0=initial_guess)
+    _, xobj, yobj, sigma_x_gauss, sigma_y_gauss, theta_gauss, _ = popt
+    msgs.info("Gaussian fit gives:")
+    msgs.info("--------------------------------")
+    if platescale is not None: 
+        msgs.info(f"FWHM_x: {sigma_x_gauss*platescale/fwhm2sigma:.2f} arcsec")
+        msgs.info(f"FWHM_y: {sigma_y_gauss*platescale/fwhm2sigma:.2f} arcsec")
+    else: 
+        msgs.info(f"FWHM_x: {sigma_x_gauss/fwhm2sigma:.2f} pixels")
+        msgs.info(f"FWHM_y: {sigma_y_gauss/fwhm2sigma:.2f} pixels")
+    msgs.info(f"Theta: {np.degrees(theta_gauss):.2f} degrees")
+    msgs.info("--------------------------------")    
+    
+    
     # Generate a best fit model
-    xobj, yobj = popt[1], popt[2]
     model = gaussian2D((xx, yy), *popt).reshape(image.shape) * wlscl
 
     # Optimally extract the object flux using the Gaussian fit
@@ -237,12 +253,7 @@ def fitGaussian2D(image, ivar=None, gpm=None, init_obj_position=None,
             f"     |   S/N   = {flux_opt/sigma_opt:6.2f}          |{msgs.newline()}"
             f"     -----------------------------{msgs.newline()}")
  
-
-    
-    #if np.isclose(np.sum(image),-13.229953612054073):
-    #    embed()
-
-    return popt, pcov, model, init_obj_position, flux_opt, sigma_opt
+    return popt, pcov, model, _init_obj_position, flux_opt, sigma_opt
 
 
 def dar_fitfunc(radec, coord_ra, coord_dec, datfit, wave, obstime, location, pressure,
@@ -454,15 +465,15 @@ def extract_point_source(wave, flxcube, ivarcube, bpmcube, wcscube, exptime,
                                       wavemin=whitelight_range[0], wavemax=whitelight_range[1])
     popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(
         wl_img, ivar=wl_ivar, gpm=wl_gpm, init_obj_position=manual_position, 
-        fwhm = fwhm/platescale, nsigma=snr_thresh, norm=False)
+        fwhm = fwhm/platescale, nsigma=snr_thresh, norm=False, platescale=platescale)
     _, xpos_gauss, ypos_gauss, sigma_x_gauss, sigma_y_gauss, theta_gauss, _ = popt
     gaussian_position = xpos_gauss, ypos_gauss
-    msgs.info("Gaussian fit gives:")
-    msgs.info("--------------------------------")
-    msgs.info(f"FWHM_x: {sigma_x_gauss*platescale/fwhm2sigma:.2f} arcsec")
-    msgs.info(f"FWHM_y: {sigma_y_gauss*platescale/fwhm2sigma:.2f} arcsec")
-    msgs.info(f"Theta: {np.degrees(theta_gauss):.2f} degrees")
-    msgs.info("--------------------------------")     
+    #msgs.info("Gaussian fit gives:")
+    #msgs.info("--------------------------------")
+    #msgs.info(f"FWHM_x: {sigma_x_gauss*platescale/fwhm2sigma:.2f} arcsec")
+    #msgs.info(f"FWHM_y: {sigma_y_gauss*platescale/fwhm2sigma:.2f} arcsec")
+    #msgs.info(f"Theta: {np.degrees(theta_gauss):.2f} degrees")
+    #msgs.info("--------------------------------")     
     
     # Object location for extraction 
     if manual_position is not None:
@@ -1287,9 +1298,7 @@ def wcs_bounds(raImg, decImg, waveImg, slitid_img_gpm, ra_offsets=None, dec_offs
                ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None):
     """
     Calculate the bounds of the WCS and the expected edges of the voxels, based
-    on user-specified parameters or the extremities of the data. This is a
-    convenience function that calls the core function in
-    :mod:`~pypeit.core.datacube`.
+    on user-specified parameters or the extremities of the data. 
 
     Parameters
     ----------
@@ -1536,7 +1545,7 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
                             ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
                             sn_smooth_npix=None, weight_method='auto',
                             reference_image=None, whitelight_range=None,
-                            correct_dar=True, specname="PYPSPEC", show_qa=False):
+                            correct_dar=True, specname="PYPSPEC", init_obj_position=None, show_qa=False):
     r"""
     Calculate wavelength dependent optimal weights. The weighting is currently
     based on a relative :math:`(S/N)^2` at each wavelength. Note, this function
@@ -1638,6 +1647,11 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
         Correct for the differential atmospheric refraction.  Default is False.
     specname : str
         Name of the spectrograph
+    init_obj_position : tuple, optional
+        The initial guess for the object position in the image with format (x, y). If set, this value will be input into 
+        `fitGaussian2D` as the initial guess for the object position. The 2D Gaussian fit will then be performed with the 
+        position constrainted to be within plus or minus fwhm/3 in x and y. If not set, the position will be determined
+        by running DAOStarFinder on the image. Default is None.
     show_qa : bool, optional
         If True, show QA plots in ginga. 
 
@@ -1673,7 +1687,8 @@ def compute_weights_frompix(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg, 
                            all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
                            wl_full, wl_sig, wl_bpm, dspat, dwv,
                            ra_min=ra_min, ra_max=ra_max, dec_min=dec_min, dec_max=dec_max, wave_min=wave_min,
-                           sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, correct_dar=correct_dar, show_qa=show_qa)
+                           sn_smooth_npix=sn_smooth_npix, weight_method=weight_method, correct_dar=correct_dar, 
+                           init_obj_position=init_obj_position, show_qa=show_qa)
 
 # TODO Refactor this, it should not be done this way, instead we should be computing the weights from the final aligned
 # cubes, after sigma clipping is performed. See my notes in coadd3d.run()
@@ -1681,7 +1696,7 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
                     all_wcs, all_tilts, all_slits, all_align, all_dar, ra_offsets, dec_offsets,
                     whitelight_img, whitelight_sigma, whitelight_bpm, dspat, dwv,
                     ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
-                    sn_smooth_npix=None, weight_method='auto', correct_dar=True, fwhm=1.5, show_qa=False):
+                    sn_smooth_npix=None, weight_method='auto', correct_dar=True, fwhm=1.5, init_obj_position=None, show_qa=False):
     r"""
     Calculate wavelength dependent optimal weights. The weighting is currently
     based on a relative :math:`(S/N)^2` at each wavelength
@@ -1772,6 +1787,11 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
             FWHM of the PSF in arcseconds. Use to determine the degree of smoothing of the whitelight image, the
             kernel size for the initial object finding, and the bounds of the parameters for the 2D Gaussian fit. 
             Default is 1.5 arcseconds.
+        init_obj_position : tuple, optional
+            The initial guess for the object position in the image with format (x, y). If set, this value will be input into 
+            `fitGaussian2D` as the initial guess for the object position. The 2D Gaussian fit will then be performed with the 
+            position constrainted to be within plus or minus fwhm/3 in x and y. If not set, the position will be determined
+            by running DAOStarFinder on the image. Default is None.
         show_qa : bool, optional
             If True, show the object detection QA plot in ginga. Default is False. 
 
@@ -1804,7 +1824,8 @@ def compute_weights(raImg, decImg, waveImg, sciImg, ivarImg, slitidImg,
     platescale = dspat*units.deg.to(units.arcsec)
     whitelight_ivar = utils.inverse(np.square(whitelight_sigma))
     popt, pcov, model, init_obj_position, flux_opt, sigma_opt = fitGaussian2D(
-        whitelight_img, ivar=whitelight_ivar, gpm=np.logical_not(whitelight_bpm), fwhm = fwhm/platescale, norm=False)
+        whitelight_img, ivar=whitelight_ivar, gpm=np.logical_not(whitelight_bpm), fwhm = fwhm/platescale, 
+        init_obj_position=init_obj_position, norm=False, platescale=platescale)
     gaussian_position = popt[1], popt[2]
     if show_qa: 
         whitelight_objfind_qa(whitelight_img, utils.inverse(np.square(whitelight_sigma)), 

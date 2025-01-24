@@ -849,8 +849,7 @@ def sn_weights(fluxes, ivars, gpms, sn_smooth_npix=None, weight_method='auto', v
               dealing with highly variable spectra (e.g. emission lines) and
               require a precision better than ~1 per cent.
 
-            - ``'ivar'``: Use inverse variance weighting. This is not well
-              tested and should probably be deprecated.
+            - ``'ivar'``: Use inverse variance weighting. 
 
     verbose : bool, optional
         Verbosity of print out.

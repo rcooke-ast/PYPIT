@@ -1343,6 +1343,14 @@ class Coadd1DPar(ParSet):
                                             "require a precision better than ~1 per cent." \
                         "'ivar' -- Use inverse variance weighting. This is not well tested and should probably be deprecated."
 
+
+        defaults['sn_smooth_npix'] = None
+        dtypes['sn_smooth_npix'] = [int, float]
+        descr['sn_smooth_npix'] = 'Number of pixels to median filter by when computing S/N used to decide how to scale ' \
+                                  'and weight spectra. If set to None (default), the code will determine the effective ' \
+                                  'number of good pixels per spectrum in the stack that is being co-added and use 10% of ' \
+                                  'this neff.'
+
         defaults['maxiter_reject'] = 5
         dtypes['maxiter_reject'] = int
         descr['maxiter_reject'] = 'Maximum number of iterations for stacking and rejection. The code stops iterating ' \
@@ -1633,12 +1641,12 @@ class CubePar(ParSet):
     see :ref:`parameters`.
     """
 
-    def __init__(self, slit_spec=None, weight_method=None, align=None, combine=None, output_filename=None,
+    def __init__(self, slit_spec=None, weight_method=None, sn_smooth_npix=None, align=None, combine=None, output_filename=None,
                  sensfile=None, reference_image=None, save_whitelight=None, whitelight_range=None, method=None,
                  ra_min=None, ra_max=None, dec_min=None, dec_max=None, wave_min=None, wave_max=None,
                  spatial_delta=None, wave_delta=None, astrometric=None, scale_corr=None,
                  skysub_frame=None, spec_subpixel=None, spat_subpixel=None, slice_subpixel=None,
-                 correct_dar=None, manual=None):
+                 correct_dar=None, weights_init_obj_pos=None):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -1845,6 +1853,20 @@ class CubePar(ParSet):
                                 'frame will be used. Note, the sky and science frames do not need to have the same ' \
                                 'exposure time; the sky model will be scaled to the science frame based on the ' \
                                 'relative exposure time.'
+
+        # manual extraction
+        defaults['weights_init_obj_pos'] = None
+        dtypes['weights_init_obj_pos'] = str
+        descr['weights_init_obj_pos'] = 'The initial guess for the object position in the image for computing the optimal weighting. ' \
+                                     'If set, this value will be input into `pypeit.core.datacube.fitGaussian2D` as ' \
+                                     'the initial guess for the object position. The 2D Gaussian fit will then be performed with the' \
+                                     'position constrainted to be within plus or minus fwhm/3 in x and y. If not set, the position' \
+                                     'will be determined by running DAOStarFinder on the image.' \
+                                     'Formatting follows the Manual extraction parameters convention, i.e. spatx:spaty:fwhm' \
+                                     'where spatx,specy are spatial x and y position in the datacube, ' \
+                                     'and fwhm is optional and is in arcsec.' \
+                                     'Currently only the use of spatx:spaty is supported. Default is None.'
+
                                 
 
         # Instantiate the parameter set
@@ -1863,8 +1885,8 @@ class CubePar(ParSet):
         # Basic keywords
         parkeys = ['slit_spec', 'output_filename', 'sensfile', 'reference_image', 'save_whitelight',
                    'method', 'spec_subpixel', 'spat_subpixel', 'slice_subpixel', 'ra_min', 'ra_max', 'dec_min', 'dec_max',
-                   'wave_min', 'wave_max', 'spatial_delta', 'wave_delta', 'weight_method', 'align', 'combine',
-                   'astrometric', 'scale_corr', 'skysub_frame', 'whitelight_range', 'correct_dar', 'manual']
+                   'wave_min', 'wave_max', 'spatial_delta', 'wave_delta', 'weight_method', 'sn_smooth_npix', 'align', 'combine',
+                   'astrometric', 'scale_corr', 'skysub_frame', 'whitelight_range', 'correct_dar', 'weights_init_obj_pos']
 
         badkeys = np.array([pk not in parkeys for pk in k])
         if np.any(badkeys):

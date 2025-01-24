@@ -1503,6 +1503,13 @@ class SlicerIFUCoAdd3D(CoAdd3D):
             return [np.ones_like(sci) for sci in self.all_sci]
         else:
             # Calculate the relative spectral weights of all pixels
+            
+            if self.cubepar['weights_init_obj_pos'] is not None and len(self.cubepar['weights_init_obj_pos']) > 0:
+                manual_dict= ManualCubeExtractionObj.parse(self.cubepar['weights_init_obj_pos']).to_dict()
+                init_obj_position = (manual_dict['spatx'][0], manual_dict['spaty'][0])
+            else: 
+                init_obj_position = None
+            
             return datacube.compute_weights_frompix(
                 self.all_ra, self.all_dec, self.all_wave, self.all_sci, self.all_ivar,
                 self.all_slitid, self._dspat, self._dwv, self.mnmx_wv, self.all_wghts,
@@ -1512,10 +1519,12 @@ class SlicerIFUCoAdd3D(CoAdd3D):
                 dec_min=self.cubepar['dec_min'], dec_max=self.cubepar['dec_max'],
                 wave_min=self.cubepar['wave_min'], wave_max=self.cubepar['wave_max'],
                 weight_method=self.cubepar['weight_method'],
+                sn_smooth_npix = self.cubepar['sn_smooth_npix'],
                 whitelight_range=self.cubepar['whitelight_range'],
                 reference_image=self.cubepar['reference_image'],
                 correct_dar=self.correct_dar,
-                specname=self.specname, show_qa=show_qa)
+                specname=self.specname, init_obj_position=init_obj_position,
+                show_qa=show_qa)
 
     def run(self):
         """
