@@ -1267,26 +1267,32 @@ class Calibrations:
         If loading is requested but the calibration file (``cal_file``) does
         not exist, ``self.success`` is set to False, and None is returned.
 
-        Args:
-            frame (:obj:`dict`):
-                A dictionary with two elements: ``type`` is the string
-                defining the frame type and ``class`` is the pypeit class
-                used to load the pre-existing calibration file.
-            cal_file (:obj:`str`, `Path`_):
-                Path to the calibration file.
-            force (:obj:`str`):
-                Defines how to treat a pre-existing calibration file.  Must
-                be one of the following options:
+        Parameters
+        ----------
+        frame : :obj:`dict`
+            A dictionary with two elements: ``type`` is the string defining the
+            frame type and ``class`` is the pypeit class used to load the
+            pre-existing calibration file.
+
+        cal_file : :obj:`str`, `Path`_
+            Path to the calibration file.
+
+        force : :obj:`str`
+            Defines how to treat a pre-existing calibration file.  Must be one
+            of the following options:
                     
-                    - ``'remake'``: Force the calibration be remade.
+                - ``'remake'``: Force the calibration be remade.
 
-                    - ``'reload'``: Reload the frame if it exists.
+                - ``'reload'``: Reload the frame if it exists.
 
-                    - ``None``: Load the existing frame if it exists and
-                    ``self.reuse_calibs=True``.
+                - ``None``: Load the existing frame if it exists and
+                  ``self.reuse_calibs=True``.
 
-        Returns:
-            :obj:`object`:  Either the loaded calibration object or None.
+        Returns
+        -------
+        :obj:`object`
+            Either the loaded calibration object or None.
+
         """
         if force not in [None, 'remake', 'reload']:
             msgs.error(f'`force` keyword must be None, remake, or reload, not {force}')
