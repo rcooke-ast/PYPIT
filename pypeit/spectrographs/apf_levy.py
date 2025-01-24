@@ -331,9 +331,10 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
         if ftype in ['trace']:
             return good_exp & (fitstbl['idname'] == 'NarrowFlat') & (fitstbl['decker'] == '3.0')
         if ftype in ['tilt']:
-            return good_exp & (fitstbl['idname'] == 'ThAr') & (fitstbl['decker'] == '8.0')
+            return good_exp & (fitstbl['idname'] == 'ThAr') & \
+                ((fitstbl['decker'] == '8.0') | (fitstbl['decker'] == '3.0'))
         if ftype in ['arc']:
-            return good_exp & (fitstbl['idname'] == 'ThAr') & (fitstbl['decker'] == 'Pinhole')
+            return good_exp & (fitstbl['idname'] == 'ThAr')
         if ftype in ['pinhole']:
             return good_exp & (fitstbl['idname'] == 'NarrowFlat') & (fitstbl['decker'] == 'Pinhole')
 
