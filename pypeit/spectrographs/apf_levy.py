@@ -393,8 +393,7 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
 
         return ord_spat_pos
 
-
-    def get_rawimage(self, raw_file, det, spectrim=None):
+    def get_rawimage(self, raw_file, det, sec_includes_binning=True):
         """ Read the image
         """
         # Check for file; allow for extra .gz, etc. suffix
