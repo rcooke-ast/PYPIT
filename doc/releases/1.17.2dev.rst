@@ -25,7 +25,8 @@ Functionality/Performance Improvements and Additions
 - Setup GUI allows resizing panels when viewing pypeit files.
 - Setup GUI allows selecting which detector to view when viewing raw data.
 - Added backwards compatibilty for old frames taken with the Bok B&C
-
+- The object trace can now be iterated over with the `find_numiterfit`
+  parameter.
 
 Instrument-specific Updates
 ---------------------------
@@ -62,3 +63,5 @@ Bug Fixes
 - Fixes bug associated with trying to remove or add slits for reductions that
   mosaic multiple detectors.
 - Fix Setup GUI sizing issues on MacOS.
+- Fixed a bug with ``pypeit_identify`` when the number of echelle orders has
+  more than two digits.
