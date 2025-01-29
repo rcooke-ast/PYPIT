@@ -44,11 +44,11 @@ Submodules
    pypeit.scripts.qa_html
    pypeit.scripts.ql
    pypeit.scripts.run_pypeit
+   pypeit.scripts.run_to_calibstep
    pypeit.scripts.scriptbase
    pypeit.scripts.sensfunc
    pypeit.scripts.setup
    pypeit.scripts.setup_coadd2d
-   pypeit.scripts.setup_gui
    pypeit.scripts.show_1dspec
    pypeit.scripts.show_2dspec
    pypeit.scripts.show_arxiv
