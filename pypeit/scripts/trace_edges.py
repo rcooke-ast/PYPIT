@@ -181,12 +181,14 @@ class TraceEdges(scriptbase.ScriptBase):
                                                         bias=msbias)
 
             # Build the trace image
+            msbpm = original_bpm.copy()     # Reset bpm
             traceImage = buildimage.buildimage_fromlist(spec, det, proc_par, files, bias=msbias,
                                                         bpm=msbpm, dark=msdark, setup=setup,
                                                         calib_id=calib_id, calib_dir=calib_dir)
 
+            # Subtract the lamp-off flats, if they exist
             if lampoff_files is not None:
-                msbpm = original_bpm.copy()
+                msbpm = original_bpm.copy() # Reset bpm
                 lampoff_flat = buildimage.buildimage_fromlist(spec, det, lampoff_par,
                                                               lampoff_files, dark=msdark,
                                                               bias=msbias, bpm=msbpm)
