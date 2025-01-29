@@ -1052,10 +1052,12 @@ class Calibrations:
         # Perform a check on the files
         self.check_calibrations(raw_trace_files)
 
+        # NOTE: self.msscattlight is *always* created after identifying the
+        # slits, meaning that it is redundant to pass the scattlight argument
+        # here.
         traceImage = buildimage.buildimage_fromlist(self.spectrograph, self.det,
                                                     self.par['traceframe'], raw_trace_files,
                                                     bias=self.msbias, bpm=self.msbpm,
-                                                    scattlight=self.msscattlight,
                                                     dark=self.msdark, calib_dir=self.calib_dir,
                                                     setup=setup, calib_id=calib_id)
         if len(raw_lampoff_files) > 0:
@@ -1072,8 +1074,7 @@ class Calibrations:
             lampoff_flat = buildimage.buildimage_fromlist(self.spectrograph, self.det,
                                                           self.par['lampoffflatsframe'],
                                                           raw_lampoff_files, dark=self.msdark,
-                                                          bias=self.msbias, scattlight=self.msscattlight,
-                                                          bpm=self.msbpm)
+                                                          bias=self.msbias, bpm=self.msbpm)
             traceImage = traceImage.sub(lampoff_flat)
 
         edges = edgetrace.EdgeTraceSet(traceImage, self.spectrograph, self.par['slitedges'],

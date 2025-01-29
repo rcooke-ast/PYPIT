@@ -99,20 +99,26 @@ class TraceEdges(scriptbase.ScriptBase):
             proc_par = rdx.par['calibrations']['traceframe']
             # Slit tracing parameters
             trace_par = rdx.par['calibrations']['slitedges']
+            # Use the bias frames to set the BPM
+            bpm_usebias = rdx.par['calibrations']['bpm_usebias']
 
             # Get the bias files, if requested
-            bias_rows = rdx.fitstbl.find_frames('bias', calib_ID=int(group), index=True)
-            bias_files = rdx.fitstbl.frame_paths(bias_rows)
+            bias_files = rdx.fitstbl.find_frame_files('bias', calib_ID=int(group))
             bias_par = rdx.par['calibrations']['biasframe']
             if len(bias_files) == 0:
                 bias_files = None
 
             # Get the dark files, if requested
-            dark_rows = rdx.fitstbl.find_frames('dark', calib_ID=int(group), index=True)
-            dark_files = rdx.fitstbl.frame_paths(dark_rows)
+            dark_files = rdx.fitstbl.find_frame_files('dark', calib_ID=int(group))
             dark_par = rdx.par['calibrations']['darkframe']
             if len(dark_files) == 0:
                 dark_files = None
+
+            # Lamp-off files
+            lampoff_files = rdx.fitstbl.find_frame_files('lampoffflats', calib_ID=int(group))
+            lampoff_par = rdx.par['calibrations']['lampoffflatsframe']
+            if len(lampoff_files) == 0:
+                lampoff_files = None
 
             # Set the QA path
             qa_path = rdx.qa_path
@@ -131,11 +137,15 @@ class TraceEdges(scriptbase.ScriptBase):
             par = spec.default_pypeit_par()
             proc_par = par['calibrations']['traceframe']
             trace_par = par['calibrations']['slitedges']
+            bpm_usebias = par['calibrations']['bpm_usebias']
             bias_files = None
             bias_par = None
 
             dark_files = None
             dark_par = None
+
+            lampoff_files = None
+            lampoff_par = None
 
             # Set the QA path
             qa_path = redux_path / 'QA'
@@ -149,31 +159,47 @@ class TraceEdges(scriptbase.ScriptBase):
 
         calib_dir = redux_path / args.calib_dir
         for det in detectors:
-            # Get the bias frame if requested
+
+            # Get the bias frame
             if bias_files is None:
                 proc_par['process']['use_biasimage'] = False
                 msbias = None
             else:
                 msbias = buildimage.buildimage_fromlist(spec, det, bias_par, bias_files)
 
-            # Get the dark frame if requested
+            # Get the bad-pixel mask
+            msbpm = spec.bpm(files[0], det, msbias=msbias if bpm_usebias else None)
+            # Save a copy
+            original_bpm = msbpm.copy()
+
+            # Get the dark frame
             if dark_files is None:
                 proc_par['process']['use_darkimage'] = False
                 msdark = None
             else:
-                msdark = buildimage.buildimage_fromlist(spec, det, dark_par, dark_files)
-
-            msbpm = spec.bpm(files[0], det)
+                msdark = buildimage.buildimage_fromlist(spec, det, dark_par, dark_files,
+                                                        bias=msbias)
 
             # Build the trace image
             traceImage = buildimage.buildimage_fromlist(spec, det, proc_par, files, bias=msbias,
                                                         bpm=msbpm, dark=msdark, setup=setup,
                                                         calib_id=calib_id, calib_dir=calib_dir)
+
+            if lampoff_files is not None:
+                msbpm = original_bpm.copy()
+                lampoff_flat = buildimage.buildimage_fromlist(spec, det, lampoff_par,
+                                                              lampoff_files, dark=msdark,
+                                                              bias=msbias, bpm=msbpm)
+                traceImage = traceImage.sub(lampoff_flat)
+
             # Trace the slit edges
             t = time.perf_counter()
             edges = edgetrace.EdgeTraceSet(traceImage, spec, trace_par, auto=True,
                                            debug=args.debug, show_stages=args.show,
                                            qa_path=qa_path)
+            if not edges.success:
+                msgs.warn(f'Edge tracing for detector {det} failed.  Continuing...')
+                continue
 
             msgs.info(f'Tracing for detector {det} finished in { time.perf_counter()-t:.1f} s.')
             # Write the two calibration frames
