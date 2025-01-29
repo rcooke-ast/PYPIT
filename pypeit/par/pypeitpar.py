@@ -4161,7 +4161,7 @@ class FindObjPar(ParSet):
 
     def __init__(self, trace_npoly=None, snr_thresh=None, find_trim_edge=None,
                  find_maxdev=None, find_extrap_npoly=None, maxnumber_sci=None, maxnumber_std=None,
-                 find_fwhm=None, ech_find_max_snr=None, ech_find_min_snr=None,
+                 find_fwhm=None, ech_find_max_snr=None, ech_find_min_snr=None, find_numiterfit=None,
                  ech_find_nabove_min_snr=None, skip_second_find=None, skip_final_global=None,
                  skip_skysub=None, find_negative=None, find_min_max=None, std_spec1d=None,
                  use_std_trace=None, fof_link = None):
@@ -4220,6 +4220,10 @@ class FindObjPar(ParSet):
         defaults['find_maxdev'] = 2.0
         dtypes['find_maxdev'] = [int, float]
         descr['find_maxdev'] = 'Maximum deviation of pixels from polynomial fit to trace used to reject bad pixels in trace fitting.'
+
+        defaults['find_numiterfit'] = 9
+        dtypes['find_numiterfit'] = int
+        descr['find_numiterfit'] = 'Number of iterations to perform on the trace fitting.'
 
         defaults['find_fwhm'] = 5.0
         dtypes['find_fwhm'] = [int, float]
@@ -4319,7 +4323,7 @@ class FindObjPar(ParSet):
         # Basic keywords
         parkeys = ['trace_npoly', 'snr_thresh', 'find_trim_edge',
                    'find_extrap_npoly', 'maxnumber_sci', 'maxnumber_std',
-                   'find_maxdev', 'find_fwhm', 'ech_find_max_snr',
+                   'find_maxdev', 'find_numiterfit', 'find_fwhm', 'ech_find_max_snr',
                    'ech_find_min_snr', 'ech_find_nabove_min_snr', 'skip_second_find',
                    'skip_final_global', 'skip_skysub', 'find_negative', 'find_min_max',
                    'std_spec1d', 'use_std_trace', 'fof_link']
