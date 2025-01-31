@@ -1139,43 +1139,6 @@ def get_std_trace(detname, std_outfile, chk_version=True):
     return std_tab
 
 
-#def lst_to_array(lst, mask=None):
-#    """
-#    Simple method to convert a list to an array
-#
-#    Allows for a list of Quantity objects
-#
-#    Args:
-#        lst (:obj:`list`):
-#            Should be number or Quantities
-#        mask (`numpy.ndarray`_, optional):
-#            Boolean array used to limit to a subset of the list.  True=good
-#
-#    Returns:
-#        `numpy.ndarray`_, `astropy.units.Quantity`_:  Converted list
-#    """
-#    _mask = np.ones(len(lst), dtype=bool) if mask is None else mask
-#
-#    # Return a Quantity array
-#    if isinstance(lst[0], units.Quantity):
-#        return units.Quantity(lst)[_mask]
-#
-#    # If all the elements of lst have the same type, np.array(lst)[mask] will work
-#    if len(set(map(type, lst))) == 1:
-#        return np.array(lst)[_mask]
-#
-#    # Otherwise, we have to set the array type to object
-#    return np.array(lst, dtype=object)[_mask]
-#
-#    # NOTE: The dtype="object" is needed for the case where one element of lst
-#    # is not a list but None. For example, if trying to unpack SpecObjs OPT fluxes
-#    # and for one slit/order the OPT extraction failed (but not the BOX extraction),
-#    # OPT_COUNTS is None for that slit/order, and lst would be something like
-#    # [array, array, array, None, array], which makes np.array to fail and give the error
-#    # "ValueError: setting an array element with a sequence. The requested array has an
-#    # inhomogeneous shape after 1 dimensions..."
-
-
 def lst_to_array(lst):
     """
     Simple method to convert a list to an array
@@ -1197,4 +1160,12 @@ def lst_to_array(lst):
     except ValueError as e:
         pass
     return np.array(lst, dtype=object)
+
+    # NOTE: The dtype="object" is needed for the case where one element of lst
+    # is not a list but None. For example, if trying to unpack SpecObjs OPT fluxes
+    # and for one slit/order the OPT extraction failed (but not the BOX extraction),
+    # OPT_COUNTS is None for that slit/order, and lst would be something like
+    # [array, array, array, None, array], which makes np.array to fail and give the error
+    # "ValueError: setting an array element with a sequence. The requested array has an
+    # inhomogeneous shape after 1 dimensions..."
 
