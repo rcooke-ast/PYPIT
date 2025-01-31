@@ -4175,7 +4175,7 @@ class EdgeTraceSet(calibframe.CalibFrame):
                   the added trace.  If the PCA does not currently exist, the
                   function will try to (re)build it.
         """
-        if not self.is_synced:
+        if not self.is_empty and not self.is_synced:
             msgs.error('Adding traces should only be executed after traces have been '
                        'synchronized into left-right slit pairs; run sync()')
 
@@ -4195,30 +4195,31 @@ class EdgeTraceSet(calibframe.CalibFrame):
         # Number of added slits
         n_add = len(_add_traces)
 
-        # Check if any of the slits to add overlap with an existing slit.
-        keep = np.ones(n_add, dtype=bool)
-        lefts = self.edge_fit[:, self.is_left]
-        rights = self.edge_fit[:, self.is_right]
-        for i in range(n_add):
-            # TODO: Improve this using interpolation?
-            y_spec = int(_add_traces[i][0])
-            x_start, x_end = _add_traces[i][1:]
-            lindx = (x_start < lefts[y_spec,:]) & (x_end > lefts[y_spec,:])
-            rindx = (x_start < rights[y_spec,:]) & (x_end > rights[y_spec,:])
-            if any(lindx) or any(rindx):
-                msgs.warn(f'Inserted slit at {y_spec}:{x_start}:{x_end} on '
-                          f'{self.traceimg.detector.name} overlaps with an existing slit!  '
-                          'New slit will *not* be added.')
-                keep[i] = False
-        if not all(keep):
-            # Remove slits to add that overlap
-            _add_traces = [a for a, k in zip(_add_traces,keep) if k]
-
-        if len(_add_traces) == 0:
-            return False
-
-        # Number of added slits
-        n_add = len(_add_traces)
+        if not self.is_empty:
+            # Check if any of the slits to add overlap with an existing slit.
+            keep = np.ones(n_add, dtype=bool)
+            lefts = self.edge_fit[:, self.is_left]
+            rights = self.edge_fit[:, self.is_right]
+            for i in range(n_add):
+                # TODO: Improve this using interpolation?
+                y_spec = int(_add_traces[i][0])
+                x_start, x_end = _add_traces[i][1:]
+                lindx = (x_start < lefts[y_spec,:]) & (x_end > lefts[y_spec,:])
+                rindx = (x_start < rights[y_spec,:]) & (x_end > rights[y_spec,:])
+                if any(lindx) or any(rindx):
+                    msgs.warn(f'Inserted slit at {y_spec}:{x_start}:{x_end} on '
+                            f'{self.traceimg.detector.name} overlaps with an existing slit!  '
+                            'New slit will *not* be added.')
+                    keep[i] = False
+            if not all(keep):
+                # Remove slits to add that overlap
+                _add_traces = [a for a, k in zip(_add_traces,keep) if k]
+            # Return if there are no remaining slits to add (indicating that not
+            # slits were added)
+            if len(_add_traces) == 0:
+                return False
+            # Reset the number of added traces
+            n_add = len(_add_traces)
 
         # Add two traces for each slit, one left and one right
         side = np.tile([-1,1], (1,n_add)).ravel()
