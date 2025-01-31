@@ -314,7 +314,7 @@ class DFOSCSpectrograph(spectrograph.Spectrograph):
         elif self.get_meta_value(scifile, 'dispname') == 'Grism_14':
             par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism14.fits'
         elif self.get_meta_value(scifile, 'dispname') == 'Grism_#15':
-            par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism15.fits'
+            par['calibrations']['wavelengths']['reid_arxiv'] = 'd154_dfosc_grism15_1.fits'
         else:
             msgs.warn('d154_dfosc.py: YOU NEED TO ADD IN THE WAVELENGTH SOLUTION FOR THIS GRISM')
 
