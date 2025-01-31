@@ -3,7 +3,7 @@
 .. include:: ../include/links.rst
 
 """
-import time
+from IPython import embed
 
 import numpy as np
 import scipy.interpolate
@@ -26,8 +26,6 @@ from pypeit.core import arc
 from pypeit.display import display
 from pypeit.core import pixels
 from pypeit.core import extract
-from pypeit.utils import fast_running_median
-from IPython import embed
 
 
 def create_skymask(sobjs, thismask, slit_left, slit_righ, box_rad_pix=None, trim_edg=(5,5),
