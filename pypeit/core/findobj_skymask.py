@@ -3,7 +3,7 @@
 .. include:: ../include/links.rst
 
 """
-import copy
+import time
 
 import numpy as np
 import scipy.interpolate
@@ -1973,7 +1973,11 @@ def objs_in_slit(image, ivar, thismask, slit_left, slit_righ,
             thisobj.hand_extract_flag = True
             # SPAT_FRACPOS
             f_ximg = scipy.interpolate.RectBivariateSpline(spec_vec, spat_vec, ximg)
-            thisobj.SPAT_FRACPOS = float(f_ximg(thisobj.hand_extract_spec, thisobj.hand_extract_spat, grid=False)) # interpolate from ximg
+            # NOTE: scipy.interpolate.RectBivariateSpline.__call__ requires
+            # array-like arguments.  Set the inputs to lists and then select the
+            # only entry that is returned.
+            thisobj.SPAT_FRACPOS = f_ximg([thisobj.hand_extract_spec], [thisobj.hand_extract_spat],
+                                          grid=False)[0]
             thisobj.smash_peakflux = np.interp(thisobj.SPAT_FRACPOS*nsamp,np.arange(nsamp), flux_smash_smth) # interpolate from fluxconv
             thisobj.smash_snr = np.interp(thisobj.SPAT_FRACPOS*nsamp,np.arange(nsamp), snr_smash_smth) # interpolate from fluxconv
             # assign the trace
