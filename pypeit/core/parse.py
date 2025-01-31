@@ -466,16 +466,3 @@ def fix_config_par_image_location(par):
     # and instead split at the semi-colon and remove leading/trailing whitespace:
     return list(map(str.strip, (','.join(_par)).split(';')))
 
-#    # Find the list indices that include the opening and closing parentheses
-#    indx = np.where(['(' in p or ')' in p for p in par])[0]
-#    if len(indx) == 0:
-#        return par
-#    if indx[0] != 0 or len(indx) % 2 != 0:
-#        # There must always be an open parenthesis in the first list element,
-#        # and there must be an even number of elements with either ( or ).
-#        # NOTE: This means nested parentheses will not work, neither will mixing
-#        # mosaic definitions with single-dector definitions!
-#        msgs.error(f'Could not interpret provided parameters: {",".join(par)}.  Check for any '
-#                    'unpaired parentheses.')
-#    return [','.join(l) for l in np.split(par, (indx+1)[1:-1:2])]
-
