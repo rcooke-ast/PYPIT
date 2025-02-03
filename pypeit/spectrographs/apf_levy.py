@@ -352,6 +352,25 @@ class APFLevySpectrograph(spectrograph.Spectrograph):
             rv = rv & (fitstbl['idname'] != filetype)
 
         return rv
+    
+    def config_specific_par(self, scifile, inp_par=None):
+        """
+        Modify the PypeIt parameters to hard-wired values used for
+        specific instrument configurations.
+
+        Args:
+            scifile (:obj:`str`):
+                File to use when determining the configuration and how
+                to adjust the input parameters.
+            inp_par (:class:`~pypeit.par.parset.ParSet`, optional):
+                Parameter set used for the full run of PypeIt.  If None,
+                use :func:`default_pypeit_par`.
+
+        Returns:
+            :class:`~pypeit.par.parset.ParSet`: The PypeIt parameter set
+            adjusted for configuration specific parameter values.
+        """
+        return self.__class__.default_pypeit_par() if inp_par is None else inp_par
 
     @property
     def norders(self):
