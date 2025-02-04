@@ -65,3 +65,6 @@ Bug Fixes
 - Fix Setup GUI sizing issues on MacOS.
 - Fixed a bug with ``pypeit_identify`` when the number of echelle orders has
   more than two digits.
+- Fixed bug when defining manual extraction apertures for 2D coadds of echelle
+  data
+
