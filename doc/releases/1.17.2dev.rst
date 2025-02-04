@@ -50,6 +50,9 @@ Datamodel Changes
 Under-the-hood Improvements
 ---------------------------
 
+ - Updates the ``pypeit_trace_edges`` script to use ``lampoffflats``, if they're
+   provided by the pypeit file passed to the script.
+
 
 Bug Fixes
 ---------
