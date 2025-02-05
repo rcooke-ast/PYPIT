@@ -765,8 +765,8 @@ class EdgeTraceSet(calibframe.CalibFrame):
             - Use :func:`maskdesign_matching` to match the slit
               edge traces found with the ones predicted by the
               slit-mask design.
-            - Use :func:`add_user_traces` and :func:`rm_user_traces`
-              to add and remove traces as defined by the
+            - Use :func:`rm_user_traces` and :func:`add_user_traces` to remove
+              and then add (in that order) traces as defined by the
               user-provided lists in the :attr:`par`.
 
         Used parameters from :attr:`par`
@@ -901,19 +901,11 @@ class EdgeTraceSet(calibframe.CalibFrame):
         # slits first is that we may have to sync the slits again.
         ad_rm = False
         if self.par['rm_slits'] is not None:
-            rm_user_slits = trace.parse_user_slits(self.par['rm_slits'],
-                                                   self.traceimg.detector.det, rm=True)
-            if rm_user_slits is not None:
-                ad_rm = True
-                self.rm_user_traces(rm_user_slits)
-
+            ad_rm = self.rm_user_traces(self.par['rm_slits'])
         # Add user traces
         if self.par['add_slits'] is not None:
-            add_user_slits = trace.parse_user_slits(self.par['add_slits'],
-                                                    self.traceimg.detector.det)
-            if add_user_slits is not None:
-                ad_rm = True
-                self.add_user_traces(add_user_slits, method=self.par['add_predict'])
+            ad_rm = self.add_user_traces(self.par['add_slits'], method=self.par['add_predict'])
+        # Show the result, if any traces were added or removed
         if show_stages and ad_rm:
             self.show(title='After user-dictated adding/removing slits')
 
@@ -2681,48 +2673,77 @@ class EdgeTraceSet(calibframe.CalibFrame):
 
     def rm_user_traces(self, rm_traces):
         """
-        Parse the user input traces to remove
+        Remove user-selected traces.
 
-        Args:
-            rm_user_traces (list):
-              y_spec, x_spat pairs
+        The traces must be synced into slits before calling this method.
 
-        Returns:
+        Parameters
+        ----------
+        rm_traces : :obj:`list`
+            A list of traces to remove.  List elements can be strings that
+            identify the detector or mosaic, spectral pixel, and spatial pixel,
+            or they can be lists that provide the pixel coordinates (y_spec,
+            x_spat) directly.
 
+        Returns
+        -------
+        :obj:`bool`
+            Flag that traces were removed.
         """
         if not self.is_synced:
             msgs.error('Trace removal should only be executed after traces have been '
                        'synchronized into left-right slit pairs; run sync()')
+
+        if not isinstance(rm_traces, list):
+            msgs.error(f'Input to rm_user_traces must be a list, not {type(rm_traces)}')
+
+        if isinstance(rm_traces[0], str):
+            # NOTE: Ignores any negatives in the definition of the detector
+            # numbers.  (Negatives are used for manual extractions to select the
+            # negative trace.)
+            _rm_traces = [list(parse.parse_image_location(rt, self.spectrograph)[1:])
+                            for rt in rm_traces]
+            _rm_traces = [rt[1:] for rt in _rm_traces if rt[0] == self.traceimg.detector.name]
+        else:
+            _rm_traces = rm_traces
+
+        if len(_rm_traces) == 0:
+            return False
+
         # Setup
         lefts = self.edge_fit[:, self.is_left]
         rights = self.edge_fit[:, self.is_right]
         indx = np.zeros(self.ntrace, dtype=bool)
         # Loop me
-        for rm_trace in rm_traces:
-            # Deconstruct
-            y_spec, xcen = rm_trace
-            #
-            lefty = lefts[y_spec,:]
-            righty = rights[y_spec,:]
-            # Match?
-            bad_slit = (lefty < xcen) & (righty > xcen)
-            if np.any(bad_slit):
-                # Double check
-                if np.sum(bad_slit) != 1:
-                    msgs.error("Something went horribly wrong in edge tracing")
-                #
-                idx = np.where(bad_slit)[0][0]
-                indx[2*idx:2*idx+2] = True
-                # JFH Print out in the spec:spat format that corresponds to the pypeit file
-                msgs.info("Removing user-supplied slit at spec:spat {}:{}".format(y_spec, xcen))
-                # Mask
-                self.bitmask.turn_on(self.edge_msk[:,indx], 'USERRMSLIT')
+        for rm_trace in _rm_traces:
+            y_spec = int(rm_trace[0])
+            xcen = rm_trace[1]
+            slit_to_remove = (lefts[y_spec,:] < xcen) & (rights[y_spec,:] > xcen)
+            # Any slits found?
+            if not np.any(slit_to_remove):
+                msgs.warn(f'No slit found to remove at pixel {y_spec}:{xcen} on '
+                          f'{self.traceimg.detector.name}.')
+                continue
+            # More than one slit found?
+            if np.sum(slit_to_remove) != 1:
+                msgs.error(f'Found *more than one slit* that covers pixel {y_spec}:{xcen} on '
+                           f'{self.traceimg.detector.name}.  Something went wrong during tracing.'
+                           '  Refine your tracing parameters and try again.')
+            idx = np.where(slit_to_remove)[0][0]
+            indx[2*idx:2*idx+2] = True
+            msgs.info(f'Removing user-supplied slit at pixel {y_spec}:{xcen} on '
+                      f'{self.traceimg.detector.name}.')
+
+        # TODO: Bring this back?  This is kind of useless because the traces
+        # (and flags) are immediately removed below
+        # self.edge_msk[:,indx] = self.bitmask.turn_on(self.edge_msk[:,indx], 'USERRMSLIT')
 
         # Syncronize the selection
         indx = self.synced_selection(indx, mode='both', assume_synced=True)
         # TODO: Add rebuild_pca ?
         # Remove
         self.remove_traces(indx)
+        return True
 
     # TODO:
     #   - Add an option to distinguish between an actual remove and a flagging
@@ -4124,44 +4145,90 @@ class EdgeTraceSet(calibframe.CalibFrame):
             self.log += [inspect.stack()[0][3]]
         return True
 
-    def add_user_traces(self, user_traces, method='straight'):
+    def add_user_traces(self, add_traces, method='straight'):
         """
-        Add traces for user-defined slits.
+        Add traces defined by users.
 
-        Args:
-            user_slits (:obj:`list`):
-                A list of lists with the coordinates for the new traces.  For
-                each new slit, the list provides the spectral coordinate at
-                which the slit edges are defined and the left and right spatial
-                pixels that the traces should pass through.  I.e., ``[664, 323,
-                348]`` mean construct a left edge that passes through pixel
-                ``(664,323)`` (ordered spectral then spatial) and a right edge
-                that passes through pixel ``(664,348)``.
+        The traces must be synced into slits before calling this method.
 
-            method (:obj:`str`, optional):
-                The method used to construct the traces.  Options are:
+        Parameters
+        ----------
+        add_traces : :obj:`list`
+            A list of traces to add.  List elements can be strings that identify
+            the detector or mosaic, spectral pixel, and then the start and end
+            spatial pixel.  Or they can be lists that provided the pixel
+            coordinates (y_spec, x_start, x_end) directly.  The new slits will
+            pass through (y_spec:x_start) on the left and (y_spec:x_end) on the
+            right.
 
-                    - ``'straight'``: Simply insert traces that have a constant
-                      spatial position as a function of spectral pixel.
+        method : :obj:`str`, optional
+            The method used to construct the traces.  Options are:
 
-                    - ``'nearest'``: Constrain the trace to follow the same form
-                      as an existing trace that is nearest the provided new
-                      trace coordinates.
+                - ``'straight'``: Simply insert traces that have a constant
+                  spatial position as a function of spectral pixel.
 
-                    - ``'pca'``: Use the PCA decomposition of the traces to
-                      predict the added trace.  If the PCA does not currently
-                      exist, the function will try to (re)build it.
+                - ``'nearest'``: Constrain the trace to follow the same form as
+                  an existing trace that is nearest the provided new trace
+                  coordinates.
 
+                - ``'pca'``: Use the PCA decomposition of the traces to predict
+                  the added trace.  If the PCA does not currently exist, the
+                  function will try to (re)build it.
         """
-        #msgs.info("Adding new slits at x0, x1 (left, right)".format(x_spat0, x_spat1))
+        if not self.is_empty and not self.is_synced:
+            msgs.error('Adding traces should only be executed after traces have been '
+                       'synchronized into left-right slit pairs; run sync()')
+
+        if not isinstance(add_traces, list):
+            msgs.error(f'Input to add_user_traces must be a list, not {type(add_traces)}')
+
+        if isinstance(add_traces[0], str):
+            # NOTE: Ignores any negatives in the definition of the detector
+            # numbers.  (Negatives are used for manual extractions to select the
+            # negative trace.)
+            _add_traces = [list(parse.parse_image_location(at, self.spectrograph)[1:])
+                            for at in add_traces]
+            _add_traces = [at[1:] for at in _add_traces if at[0] == self.traceimg.detector.name]
+        else:
+            _add_traces = add_traces
+
         # Number of added slits
-        n_add = len(user_traces)
+        n_add = len(_add_traces)
+
+        if not self.is_empty:
+            # Check if any of the slits to add overlap with an existing slit.
+            keep = np.ones(n_add, dtype=bool)
+            lefts = self.edge_fit[:, self.is_left]
+            rights = self.edge_fit[:, self.is_right]
+            for i in range(n_add):
+                # TODO: Improve this using interpolation?
+                y_spec = int(_add_traces[i][0])
+                x_start, x_end = _add_traces[i][1:]
+                lindx = (x_start < lefts[y_spec,:]) & (x_end > lefts[y_spec,:])
+                rindx = (x_start < rights[y_spec,:]) & (x_end > rights[y_spec,:])
+                if any(lindx) or any(rindx):
+                    msgs.warn(f'Inserted slit at {y_spec}:{x_start}:{x_end} on '
+                            f'{self.traceimg.detector.name} overlaps with an existing slit!  '
+                            'New slit will *not* be added.')
+                    keep[i] = False
+            if not all(keep):
+                # Remove slits to add that overlap
+                _add_traces = [a for a, k in zip(_add_traces,keep) if k]
+            # Return if there are no remaining slits to add (indicating that not
+            # slits were added)
+            if len(_add_traces) == 0:
+                return False
+            # Reset the number of added traces
+            n_add = len(_add_traces)
+
         # Add two traces for each slit, one left and one right
         side = np.tile([-1,1], (1,n_add)).ravel()
+
         # Reformat the user-defined input into an array of spectral and spatial
         # coordiates for the new traces
-        new_trace_coo = np.array(user_traces, dtype=float)
+        new_trace_coo = np.array(_add_traces, dtype=float)
         new_trace_coo = np.insert(new_trace_coo, 2, new_trace_coo[:,0], axis=1).reshape(-1,2)
+
         if method == 'straight':
             # Just repeat the spatial positions
             new_traces = np.tile(new_trace_coo[:,1], (self.nspec,1))
@@ -4208,6 +4275,7 @@ class EdgeTraceSet(calibframe.CalibFrame):
         self.insert_traces(side, new_traces, mode='user')
         # Sync
         self.check_synced(rebuild_pca=False)
+        return True
 
     def insert_traces(self, side, trace_cen, loc=None, mode='user', resort=True, nudge=True):
         r"""
