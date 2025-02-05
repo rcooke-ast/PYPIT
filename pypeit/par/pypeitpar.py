@@ -3284,7 +3284,7 @@ class EdgeTracePar(ParSet):
                  order_gap_poly=None, order_fitrej=None, order_outlier=None, order_spat_range=None,
                  overlap=None, max_overlap=None, use_maskdesign=None, maskdesign_maxsep=None,
                  maskdesign_step=None, maskdesign_sigrej=None, pad=None, add_slits=None,
-                 add_predict=None, rm_slits=None, maskdesign_filename=None):
+                 add_predict=None, rm_slits=None, maskdesign_filename=None, mask_off_detector=None):
 
         # Grab the parameter names and values from the function
         # arguments
@@ -3351,6 +3351,11 @@ class EdgeTracePar(ParSet):
                              'Should be two integers, e.g. 100,150 trims 100 pixels from the ' \
                              'short wavelength end and 150 pixels from the long wavelength ' \
                              'end of the spectral axis of the detector.'
+
+        defaults['mask_off_detector'] = False
+        dtypes['mask_off_detector'] = bool
+        descr['mask_off_detector'] = 'Mask off the portions of the slits/orders that are' \ 
+                                     'more that 50% off the detector.'
         
         defaults['max_shift_abs'] = 0.5
         dtypes['max_shift_abs'] = [int, float]
@@ -3841,7 +3846,7 @@ class EdgeTracePar(ParSet):
                    'order_gap_poly', 'order_fitrej', 'order_outlier', 'order_spat_range','overlap',
                    'max_overlap', 'use_maskdesign', 'maskdesign_maxsep', 'maskdesign_step',
                    'maskdesign_sigrej', 'maskdesign_filename', 'pad', 'add_slits', 'add_predict',
-                   'rm_slits']
+                   'rm_slits', 'mask_off_detector']
 
         badkeys = np.array([pk not in parkeys for pk in k])
         if np.any(badkeys):

@@ -5655,6 +5655,32 @@ class EdgeTraceSet(calibframe.CalibFrame):
             specmin = specmin[indx]/binspec
             specmax = specmax[indx]/binspec
 
+        if self.par['mask_off_detector']:
+            # check and mask portions of the slits/orders that are more than 50% off the detector
+            _slits = self.edge_fit[:,gpm].reshape(self.nspec, -1, 2)
+            # for each left and right edge
+            for s in range(_slits.shape[1]):
+                # get the median slit length, calculated using also the off-detector edges
+                med_slit_len = np.median(_slits[:,s,1] - _slits[:,s,0])
+                # bool arrays for slits that are off the detector on the left and right side
+                off_det_left = _slits[:, s, 0] < 0
+                off_det_right = _slits[:, s, 1] > self.nspat
+                # now measure the actual slit lengths, i.e., using the detector edges
+                # as the slit edges if they are off the detector
+                slits_actual = _slits.copy()
+                if np.any(off_det_left):
+                    slits_actual[off_det_left, s, 0] = 0
+                if np.any(off_det_right):
+                    slits_actual[off_det_right, s, 1] = self.nspat
+                # actual slit lengths
+                slit_lens_actual = slits_actual[:, s, 1] - slits_actual[:, s, 0]
+                # find where the actual slit length is less than 50% of the median slit length
+                off_det_indx = np.where(np.logical_not((slit_lens_actual < 0.5 * med_slit_len)))[0]
+                # set the specmin and specmax for the off-detector regions
+                if off_det_indx.size > 0:
+                    specmin[s] = np.maximum(specmin[s], off_det_indx[0])
+                    specmax[s] = np.minimum(specmax[s], off_det_indx[-1])
+
         # Define spat_id (in the same way is done in SlitTraceSet) to add it in the astropy table. It
         # is useful to have spat_id in that table.
         center = (left + right) / 2
