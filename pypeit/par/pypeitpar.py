@@ -3354,7 +3354,7 @@ class EdgeTracePar(ParSet):
 
         defaults['mask_off_detector'] = False
         dtypes['mask_off_detector'] = bool
-        descr['mask_off_detector'] = 'Mask off the portions of the slits/orders that are' \ 
+        descr['mask_off_detector'] = 'Mask off the portions of the slits/orders that are ' \
                                      'more that 50% off the detector.'
         
         defaults['max_shift_abs'] = 0.5
